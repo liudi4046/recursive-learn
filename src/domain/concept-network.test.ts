@@ -87,4 +87,18 @@ describe("concept network domain", () => {
     expect(updated).toHaveLength(1);
     expect(updated).toEqual(relations);
   });
+
+  it("resolves relation targets by alias the same way as findOrCreate", () => {
+    const concepts = [
+      concept({ id: "a", name: "Encoder stack" }),
+      concept({ id: "b", name: "Block", aliases: ["Transformer block", "TF block"] })
+    ];
+
+    const next = upsertConceptRelations(concepts, [], "a", [{ name: "transformer block", relation: "uses" }]);
+
+    expect(next).toHaveLength(1);
+    expect(next[0].sourceConceptId).toBe("a");
+    expect(next[0].targetConceptId).toBe("b");
+    expect(next[0].label).toBe("uses");
+  });
 });

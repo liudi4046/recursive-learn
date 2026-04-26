@@ -27,11 +27,16 @@ function conceptNames(concept: Concept): string[] {
   return [concept.name, ...concept.aliases];
 }
 
-export function findOrCreateConcept(concepts: Concept[], candidateName: string): FindOrCreateConceptResult {
-  const normalizedCandidateName = normalizeName(candidateName);
-  const existingConcept = concepts.find((concept) =>
-    conceptNames(concept).some((name) => normalizeName(name) === normalizedCandidateName)
+/** Match a free-form label to an existing concept by normalized canonical name or any alias. */
+function findConceptByNormalizedLabel(concepts: Concept[], label: string): Concept | undefined {
+  const normalized = normalizeName(label);
+  return concepts.find((concept) =>
+    conceptNames(concept).some((name) => normalizeName(name) === normalized)
   );
+}
+
+export function findOrCreateConcept(concepts: Concept[], candidateName: string): FindOrCreateConceptResult {
+  const existingConcept = findConceptByNormalizedLabel(concepts, candidateName);
 
   if (existingConcept) {
     return {
@@ -69,8 +74,7 @@ export function upsertConceptRelations(
   }
 
   for (const candidate of candidates) {
-    const normalizedCandidateName = normalizeName(candidate.name);
-    const targetConcept = concepts.find((concept) => normalizeName(concept.name) === normalizedCandidateName);
+    const targetConcept = findConceptByNormalizedLabel(concepts, candidate.name);
 
     if (!targetConcept || targetConcept.id === sourceConcept.id) {
       continue;
