@@ -6,7 +6,24 @@ import {
   getNodePath,
   updateNodeStatus
 } from "./learning-tree";
-import type { CreateNodeOutput } from "./types";
+import type { CreateNodeOutput, LearningNode } from "./types";
+
+function withTraversalLimit(node: LearningNode, limit = 10): LearningNode {
+  let parentReads = 0;
+  const parentNodeId = node.parentNodeId;
+
+  return Object.defineProperty({ ...node }, "parentNodeId", {
+    enumerable: true,
+    get() {
+      parentReads += 1;
+      if (parentReads > limit) {
+        throw new Error("Traversal did not stop");
+      }
+
+      return parentNodeId;
+    }
+  });
+}
 
 describe("learning tree domain", () => {
   it("creates a topic with one unmastered root node", () => {
@@ -96,6 +113,34 @@ describe("learning tree domain", () => {
 
     expect(path.map((node) => node.id)).toEqual([session.nodes[0].id, selected.id]);
     expect(path).not.toContain(sibling);
+  });
+
+  it("throws a clear error for a self-parent cycle", () => {
+    const session = createTopicWithRoot("Transformers", "A transformer is a neural network architecture.");
+    const cyclicRoot: LearningNode = {
+      ...session.nodes[0],
+      parentNodeId: session.nodes[0].id
+    };
+
+    expect(() => getNodePath([withTraversalLimit(cyclicRoot)], cyclicRoot.id)).toThrow(/Cycle detected/);
+  });
+
+  it("throws a clear error for a two-node parent cycle", () => {
+    const session = createTopicWithRoot("Transformers", "A transformer is a neural network architecture.");
+    const nodeA: LearningNode = {
+      ...session.nodes[0],
+      id: "node_a",
+      parentNodeId: "node_b"
+    };
+    const nodeB: LearningNode = {
+      ...session.nodes[0],
+      id: "node_b",
+      parentNodeId: "node_a"
+    };
+
+    expect(() => getNodePath([withTraversalLimit(nodeA), withTraversalLimit(nodeB)], nodeA.id)).toThrow(
+      /Cycle detected/
+    );
   });
 
   it("updates node mastery status", () => {

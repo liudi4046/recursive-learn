@@ -95,10 +95,16 @@ export function updateNodeStatus(node: LearningNode, status: NodeStatus): Learni
 
 export function getNodePath(nodes: LearningNode[], nodeId: string): LearningNode[] {
   const nodesById = new Map(nodes.map((node) => [node.id, node]));
+  const visitedNodeIds = new Set<string>();
   const path: LearningNode[] = [];
   let current = nodesById.get(nodeId);
 
   while (current) {
+    if (visitedNodeIds.has(current.id)) {
+      throw new Error(`Cycle detected in learning node path at ${current.id}`);
+    }
+
+    visitedNodeIds.add(current.id);
     path.unshift(current);
     current = current.parentNodeId ? nodesById.get(current.parentNodeId) : undefined;
   }
