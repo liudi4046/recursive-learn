@@ -1,311 +1,370 @@
-# Recursive Learning Map MVP Design
+# Recursive Learning Network MVP Design
 
 ## Summary
 
-Recursive Learning Map is an AI learning product where every user question becomes a durable node in a visual learning map. The product is not a general chat interface. It is a node-based tutor that helps users explore a topic recursively, return to earlier points, and preserve their thinking path.
+MapLearn is a recursive AI learning workspace. A learner starts from a topic, reads an AI-generated node, and asks follow-up questions. For each question, the learner chooses whether to create a new child node in the topic learning map or continue the current node without changing the map.
 
-The MVP validates one core hypothesis: users learn better when each moment of confusion is captured as a navigable branch instead of disappearing inside a chat transcript.
+The product has two complementary structures:
+
+- Topic learning maps are tree-shaped paths of learning nodes.
+- The knowledge base is a network of reusable concepts across topics.
+
+The MVP should feel like a calm personal knowledge workspace, not a course dashboard.
 
 ## Product Principles
 
-- Every user question creates a new node.
-- The current node determines the context for the next AI response.
-- The map records the user's thinking path, not only the formal knowledge structure.
-- The main learning surface should stay focused on reading and asking.
-- The full learning map should open as an immersive, full-screen diagram.
-- AI responses are generated from local node context by default, not from the entire history.
+- The user controls whether a question creates a node.
+- Learning nodes form a tree under a topic.
+- Learning node state has only two values: `unmastered` and `mastered`.
+- Concepts do not have mastery state.
+- Concepts are neutral knowledge entities connected in a network.
+- The knowledge base must visually show a concept network, not only cards or lists.
+- UI should stay quiet: no learning duration, session summary, streaks, timelines, heavy stats, or recommendation clutter.
+- AI context is built from the selected node and relevant concepts, not from the entire history.
 
-## Target User
+## Core Objects
 
-The initial target user is a motivated self-learner studying a complex topic such as Transformer models, economics, programming languages, math, or philosophy. They are comfortable asking follow-up questions, but they often lose track of how one question led to another in normal AI chat.
+### Topic
 
-## Core User Journey
+A Topic is a learning entry point such as `Transformer`, `BERT`, `Probability Theory`, or `Product Design`.
 
-1. The user enters a learning topic, such as "Transformer".
-2. The system creates a root node with a concise opening explanation.
-3. The user reads the current node.
-4. The user asks any question from that node.
-5. The system creates a child node under the current node.
-6. AI generates the child node title, answer, summary, and suggested next steps.
-7. The user continues recursively from the new node or returns to any earlier node.
-8. The user opens the full-screen map to inspect their learning path.
-9. The user marks nodes as learned, needs review, or still confusing.
-10. The system can summarize the path and suggest what to review next.
+A Topic owns one learning tree.
+
+```ts
+type Topic = {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+};
+```
+
+### LearningNode
+
+A LearningNode is a concrete learning unit inside a topic tree. It may come from a root topic, a user question that creates a child node, or a user question that continues the current node.
+
+Only child-node questions create new LearningNode records. Continue-here questions append an exchange to the active node.
+
+```ts
+type NodeStatus = "unmastered" | "mastered";
+
+type LearningNode = {
+  id: string;
+  topicId: string;
+  parentNodeId: string | null;
+  linkedConceptId: string | null;
+  title: string;
+  contentBlocks: NodeContentBlock[];
+  status: NodeStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type NodeContentBlock = {
+  id: string;
+  question: string | null;
+  answer: string;
+  createdAt: string;
+};
+```
+
+### Concept
+
+A Concept is a reusable knowledge entity across topics. Concepts do not have `mastered` or `unmastered` state.
+
+```ts
+type Concept = {
+  id: string;
+  name: string;
+  description: string | null;
+  aliases: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+```
+
+### ConceptRelation
+
+A ConceptRelation connects concepts in the knowledge base network.
+
+```ts
+type ConceptRelation = {
+  id: string;
+  sourceConceptId: string;
+  targetConceptId: string;
+  label: "related" | "part_of" | "uses" | "used_by";
+};
+```
+
+### LearningNodeConceptLink
+
+A LearningNodeConceptLink records that a node is evidence of a concept appearing in a specific learning context.
+
+```ts
+type LearningNodeConceptLink = {
+  nodeId: string;
+  conceptId: string;
+  confidence: "auto" | "confirmed";
+};
+```
+
+## Concept Linking
+
+When AI generates a child node or continues the current node, the system may infer a concept candidate.
+
+Concept linking should be lightweight:
+
+1. Generate or extract a candidate concept name from the node title, question, or AI response.
+2. Search existing concepts locally by normalized name, alias, and optional embedding similarity.
+3. Link to a high-confidence match.
+4. Create a new Concept when no strong match exists.
+5. Keep uncertain cases as auto-linked so future merge and confirmation tools can refine them.
+
+The system must not send the full knowledge base to the model. If AI is used for disambiguation, only a small candidate set, such as top 3 concepts, should be included.
+
+## AI Behavior
+
+### Create Child Node
+
+Input:
+
+- Current topic.
+- Path from root to active node.
+- Active node content.
+- User question.
+- Small related concept context when available.
+
+Output:
+
+```ts
+type CreateNodeOutput = {
+  title: string;
+  answer: string;
+  conceptCandidate: string | null;
+  relatedConceptCandidates: Array<{
+    name: string;
+    relation: "related" | "part_of" | "uses" | "used_by";
+  }>;
+};
+```
+
+The system creates a new child LearningNode and optionally links or creates Concepts.
+
+### Continue Here
+
+Input:
+
+- Current topic.
+- Path from root to active node.
+- Active node content.
+- User question.
+- Small related concept context when available.
+
+Output:
+
+```ts
+type ContinueNodeOutput = {
+  answer: string;
+  conceptCandidate: string | null;
+  relatedConceptCandidates: Array<{
+    name: string;
+    relation: "related" | "part_of" | "uses" | "used_by";
+  }>;
+};
+```
+
+The system appends a content block to the active node. It does not create a new LearningNode and does not change the topic tree shape.
+
+## Pages
+
+### 1. Homepage
+
+Purpose: start learning quickly.
+
+Content:
+
+- MapLearn logo.
+- Top navigation: Learning Map, Knowledge Base, Search, Account.
+- Headline: `Turn your questions into a learning map.`
+- Short subtitle.
+- Topic input.
+- `Start learning` button.
+- Visual preview of a tree-shaped learning map.
+
+Exclude:
+
+- Pricing.
+- Templates.
+- Course marketing blocks.
+- Learning time or progress metrics.
+
+### 2. Node Detail Page
+
+Purpose: primary reading and questioning page.
+
+Content:
+
+- Breadcrumb path.
+- Node title.
+- Two-state node status toggle: `Unmastered` / `Mastered`.
+- Main node content.
+- Question input.
+- A lightweight segmented control:
+  - `Create child node`
+  - `Continue here`
+- Primary action matching the selected mode.
+- Right-side compact learning map preview.
+- `Open full map` button.
+
+Behavior:
+
+- `Create child node` creates a new child node and navigates to it.
+- `Continue here` appends the AI answer to the current node and stays on the same node.
+
+Exclude:
+
+- One-sentence summary.
+- Recommended next questions.
+- Node ID.
+- Created time.
+- Session statistics.
+- Concept mastery status.
+- Excess tags.
+
+### 3. Learning Map Page
+
+Purpose: show a topic's tree-shaped learning path.
+
+Content:
+
+- Topic title.
+- Node search.
+- Status filter: All / Unmastered / Mastered.
+- Dot-grid map canvas.
+- Tree layout with parent-child connectors.
+- Selected-node side panel.
+
+Node card content:
+
+- Node title.
+- Node status.
+
+Selected-node side panel:
+
+- Node title.
+- Status toggle.
+- Parent node.
+- Child node count.
+- `Open node` button.
+- Optional linked concept name.
+
+The learning map must stay tree-shaped. Cross-topic concept relationships belong in the Knowledge Base.
+
+### 4. Knowledge Base Page
+
+Purpose: show the user's cross-topic concept network.
+
+Content:
+
+- Page title: Knowledge Base.
+- Search concepts.
+- Concept network canvas as the main surface.
+- Concepts as graph nodes.
+- Labeled relationship lines such as `uses`, `part of`, `related`, and `used by`.
+- Selected-concept side panel.
+- Optional mini-map or zoom controls.
+
+Selected-concept side panel:
+
+- Concept name.
+- Appears-in-topics count.
+- Linked-learning-nodes count.
+- Related concept list with relation labels.
+- `Open concept` button.
+
+Exclude:
+
+- Concept mastery state.
+- Concept status badges.
+- Card-only knowledge base layout.
+- Heavy analytics.
+
+### 5. Concept Detail Page
+
+Purpose: show one concept's cross-topic context.
+
+Content:
+
+- Back to Knowledge Base.
+- Concept name.
+- Short description.
+- Appears in topics.
+- Linked learning nodes with full paths.
+- Related concepts.
+- Local network preview centered on the concept.
+- Basic metadata such as aliases can appear in a quiet side panel.
+
+Exclude:
+
+- Mastered / unmastered controls.
+- Progress metrics.
+- Learning duration.
+- Session summary.
+
+## Search
+
+Search can be a simple global surface for:
+
+- Topics.
+- Learning nodes.
+- Concepts.
+
+Results should be grouped by type. MVP search can be keyword-based.
+
+## Context Strategy
+
+When the user asks from a node, AI receives:
+
+- Current Topic.
+- Path from root to active node.
+- Active node content.
+- User question.
+- Small related concept context when available.
+- User-selected mode: `create_child_node` or `continue_here`.
+
+AI does not receive by default:
+
+- Entire topic tree.
+- Full knowledge base.
+- Sibling branches.
+- Other topics.
+- All historical questions.
 
 ## MVP Scope
 
-The MVP includes:
+Includes:
 
-- Topic input.
-- Root node generation.
-- Current node reading view.
-- Question input that always creates a child node.
-- Full-screen visual learning map.
-- Clickable map nodes that navigate back to node content.
-- Node status marking: learning, learned, review, stuck.
-- Basic learning path statistics.
-- Session-level persistence.
-- A simple path summary generated from node titles and statuses.
+- Homepage.
+- Node detail page.
+- Learning map page.
+- Knowledge base network page.
+- Concept detail page.
+- Topic creation.
+- Root node creation.
+- Create-child-node mode.
+- Continue-here mode.
+- Node status toggle.
+- Concept linking and creation by lightweight local search.
+- Concept relation network visualization.
 
-The MVP excludes:
+Excludes:
 
-- User account system.
+- User accounts beyond a visual account menu entry.
+- Collaboration.
 - Public sharing.
-- Multi-user collaboration.
-- Automatic web research.
-- File uploads.
-- Rich course authoring.
-- AI map reorganization.
-- Node merging and splitting.
-- Spaced repetition scheduling beyond simple review status.
-
-## UX Design
-
-### Main Learning View
-
-The main view is a focused reading and questioning surface. It contains:
-
-- Product name and topic controls in a compact top bar.
-- A button to open the full-screen learning map.
-- Breadcrumb for the current path.
-- Current node title.
-- Current node answer.
-- Node metadata and status.
-- Question input.
-- Primary action: ask and record.
-- Quick prompts such as example, analogy, prerequisite, exercise, and summary.
-
-The main view should not display the full map persistently. A permanent side map competes with reading and makes the product feel like a document editor instead of a learning surface.
-
-### Full-Screen Learning Map
-
-The map opens from a dedicated button. It is an immersive diagram view showing parent-child relationships between learning nodes.
-
-Required map behavior:
-
-- Highlight the current node.
-- Show node status visually.
-- Show node depth or path position.
-- Allow clicking a node to return to its learning page.
-- Provide "return to learning" and "focus current node" controls.
-- Support horizontal and vertical overflow for large maps.
-
-The first version can use a tree diagram. It does not need a freeform graph, drag-and-drop layout, or force-directed visualization.
-
-## Node Model
-
-Each learning node has:
-
-```json
-{
-  "id": "node_12",
-  "parentId": "node_8",
-  "topicId": "topic_1",
-  "title": "Why Query and Key use dot product",
-  "question": "Why do Query and Key need a dot product?",
-  "answer": "AI-generated explanation",
-  "summary": "Explains dot product as a learned similarity score between vectors.",
-  "status": "learning",
-  "type": "concept",
-  "createdAt": "2026-04-26T00:00:00.000Z",
-  "updatedAt": "2026-04-26T00:00:00.000Z"
-}
-```
-
-Required statuses:
-
-- `learning`
-- `learned`
-- `review`
-- `stuck`
-
-Suggested node types:
-
-- `concept`
-- `why`
-- `comparison`
-- `example`
-- `analogy`
-- `prerequisite`
-- `exercise`
-- `summary`
-- `simplification`
-
-Node type is generated by AI but should not affect whether a node is created. All user questions create nodes.
-
-## AI Context Strategy
-
-The product is node-context driven, not chat-history driven.
-
-When the user asks a new question from node `A`, the AI request includes:
-
-- Root topic title and goal.
-- User level and explanation preferences, if available.
-- Current path from root to node `A`.
-- Summaries for ancestor nodes.
-- Full content or summary of node `A`.
-- User's new question.
-
-The AI request does not include by default:
-
-- The entire map.
-- Full chat history.
-- Sibling branches.
-- Child branches of the current node.
-- Recently visited nodes that are not on the current path.
-
-Example:
-
-If the user navigates from depth 3 back to depth 2 and asks a new question, the depth 3 branch is not included unless the user explicitly references it.
-
-Optional retrieval can add extra context when needed:
-
-- Explicitly referenced nodes.
-- Recently visited node summaries when the user says "the previous thing".
-- Top-k semantically related node summaries for cross-branch comparison.
-
-## AI Output Contract
-
-For each new node, AI should return structured data:
-
-```json
-{
-  "title": "Why softmax is used in attention",
-  "type": "why",
-  "answer": [
-    "Short paragraph 1",
-    "Short paragraph 2",
-    "Short paragraph 3"
-  ],
-  "summary": "Softmax turns attention scores into normalized weights.",
-  "parentRelation": "Explains how self-attention turns raw similarity scores into usable attention weights.",
-  "suggestedQuestions": [
-    "Why are attention scores scaled?",
-    "What happens if we do not use softmax?",
-    "Can you show a numeric example?"
-  ]
-}
-```
-
-The UI should render from structured fields rather than parse freeform text.
-
-## Data Flow
-
-### Create Root Node
-
-1. User submits topic.
-2. Client creates a topic record.
-3. Server calls AI with topic, user level, and learning goal.
-4. Server stores root node.
-5. Client navigates to root node.
-
-### Ask Question
-
-1. User submits a question from the current node.
-2. Client sends `currentNodeId` and question.
-3. Server loads current node and ancestor path.
-4. Server builds local context.
-5. Server calls AI using the node output contract.
-6. Server creates a child node under the current node.
-7. Client navigates to the new node.
-8. Map updates with the new branch.
-
-### Navigate Map
-
-1. User opens full-screen map.
-2. Client renders the topic tree.
-3. User clicks a node.
-4. Client closes map and loads that node.
-5. Future questions attach to that selected node.
-
-## Architecture
-
-The MVP can be built as a small web app:
-
-- Frontend: React or Next.js with a focused two-surface UI.
-- Backend: API routes or a small server for AI calls and persistence.
-- Database: SQLite or Postgres.
-- AI provider: OpenAI Responses API or equivalent structured-output API.
-- Persistence: local database first; user accounts later.
-
-Recommended MVP stack:
-
-- Next.js app for speed of iteration.
-- SQLite via Prisma or Drizzle for simple local persistence.
-- Server-side AI calls only.
-- React Flow is optional; a custom tree diagram is enough for MVP.
-
-## Components
-
-- `TopicLauncher`: topic input and initial learning setup.
-- `LearningShell`: top bar, current node, and question panel.
-- `NodeReader`: renders node title, answer, metadata, and status controls.
-- `QuestionComposer`: submits user questions and quick prompts.
-- `LearningMapModal`: full-screen map surface.
-- `LearningTree`: visual parent-child node diagram.
-- `NodeStore`: data access for topics and nodes.
-- `ContextBuilder`: builds AI context from current node and ancestor path.
-- `AiNodeGenerator`: calls AI and validates structured output.
-
-## Error Handling
-
-- If AI generation fails, keep the user on the current node and show a retry action.
-- If structured output is invalid, retry once with a stricter repair prompt.
-- If persistence fails, do not show the new node as saved.
-- If a node is missing, navigate back to the root topic if available.
-- If the map is too large, show it with scroll and allow focusing the current node.
-
-## Testing Strategy
-
-Unit tests:
-
-- Context builder includes only root, ancestors, current node, and user question.
-- Context builder excludes sibling and child branches by default.
-- Node creation always attaches to the active current node.
-- Status updates persist correctly.
-- AI output validation rejects missing title, answer, or summary.
-
-Integration tests:
-
-- Topic creation creates a root node.
-- Asking from depth 2 creates a depth 3 child.
-- Returning to depth 2 and asking creates a sibling of the earlier depth 3 node.
-- Map navigation changes the active node.
-
-UI tests:
-
-- Main view renders current node and breadcrumb.
-- Full-screen map opens and closes.
-- New questions appear in the map.
-- Clicking a map node returns to the learning view.
-
-## Success Criteria
-
-The MVP is successful if:
-
-- A user can start a topic and create at least five recursive nodes without confusion.
-- The map clearly shows where each question belongs.
-- Returning to an earlier node and asking creates the correct branch.
-- AI context remains scoped to the selected path, not the entire history.
-- The user can review what they learned from the map without reading a chat transcript.
-
-## Open Product Decisions
-
-These are intentionally deferred until after MVP validation:
-
-- Whether users should be able to merge or hide low-value nodes.
-- Whether AI should reorganize the map after a session.
-- Whether node type should affect visual grouping.
-- Whether study sessions should become spaced repetition cards.
-- Whether source documents should become first-class context.
-
-## Implementation Notes
-
-The current HTML demo in `/Users/steven/Documents/Codex/2026-04-26/llm-ai-mvp/index.html` demonstrates the interaction model:
-
-- A focused reading view.
-- Every question creates a child node.
-- A full-screen map opens on demand.
-- Clicking a map node changes the active learning context.
-
-The production MVP should preserve this interaction before adding larger features.
+- Billing.
+- Learning time tracking.
+- Session summaries.
+- Recommended next questions.
+- Concept mastery.
+- Full automatic map restructuring.
