@@ -22,7 +22,7 @@ export default function NodeRoutePage({ params }: { params: Promise<{ nodeId: st
   }
   if (!state) {
     return (
-      <main className="node-page">
+      <main className="mx-auto max-w-[1200px] px-10 py-12">
         <p>
           No learning session. <Link href="/">Start from home</Link>.
         </p>
@@ -31,7 +31,7 @@ export default function NodeRoutePage({ params }: { params: Promise<{ nodeId: st
   }
   if (!state.nodes.some((n) => n.id === nodeId)) {
     return (
-      <main className="node-page">
+      <main className="mx-auto max-w-[1200px] px-10 py-12">
         <p>Node not found.</p>
         <p>
           <Link href="/">Home</Link>

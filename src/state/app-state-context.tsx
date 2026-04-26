@@ -1,6 +1,15 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+  type ReactNode
+} from "react";
 import type { AppState } from "@/domain/app-state";
 import { clearStoredState, loadState, saveState } from "@/lib/storage";
 
@@ -20,11 +29,19 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     setStateInternal(next);
   }, []);
 
-  useEffect(() => {
-    const stored = loadState();
-    if (stored) setStateInternal(stored);
+  const hydrate = useCallback(() => {
+    try {
+      const stored = loadState();
+      if (stored) setStateInternal(stored);
+    } catch {
+      clearStoredState();
+    }
     setRehydrated(true);
   }, []);
+
+  useLayoutEffect(() => {
+    hydrate();
+  }, [hydrate]);
 
   useEffect(() => {
     if (!rehydrated) return;

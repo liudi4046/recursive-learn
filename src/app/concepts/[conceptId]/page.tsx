@@ -14,7 +14,7 @@ export default function ConceptRoutePage({ params }: { params: Promise<{ concept
   }
   if (!state) {
     return (
-      <main className="concept-page">
+      <main className="mx-auto max-w-[1200px] px-10 py-12">
         <p>
           No session. <Link href="/">Start from home</Link>.
         </p>

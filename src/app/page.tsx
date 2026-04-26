@@ -5,12 +5,8 @@ import { HomePage } from "@/components/HomePage";
 import { NodeDetailPage } from "@/components/NodeDetailPage";
 import { useAppState } from "@/state/app-state-context";
 
-export default function HomePageRoute() {
-  const { rehydrated, state, setState } = useAppState();
-
-  if (!rehydrated) {
-    return null;
-  }
+export default function Page() {
+  const { state, setState } = useAppState();
 
   if (!state) {
     return <HomePage onStart={(title) => setState(createInitialState(title))} />;

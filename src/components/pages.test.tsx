@@ -9,7 +9,8 @@ import { KnowledgeBasePage } from "./KnowledgeBasePage";
 describe("pages", () => {
   it("renders homepage start form", () => {
     render(<HomePage onStart={() => undefined} />);
-    expect(screen.getByText("Turn your questions into a learning map.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/learning map/i);
+    expect(screen.getByPlaceholderText("What do you want to learn?")).toBeInTheDocument();
   });
 
   it("renders node detail with ask mode switch", () => {
@@ -22,7 +23,7 @@ describe("pages", () => {
   it("renders learning map as a tree page", () => {
     const state = createInitialState("Transformer");
     render(<LearningMapPage state={state} onStateChange={() => undefined} />);
-    expect(screen.getByRole("heading", { name: "Transformer" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Transformer" })).toBeInTheDocument();
     expect(screen.getAllByText("Unmastered").length).toBeGreaterThan(0);
   });
 

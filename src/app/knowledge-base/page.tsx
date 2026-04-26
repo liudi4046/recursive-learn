@@ -12,7 +12,7 @@ export default function KnowledgeBaseRoutePage() {
   }
   if (!state) {
     return (
-      <main className="knowledge-page">
+      <main className="mx-auto max-w-[1400px] px-10 py-12">
         <p>
           No session yet. <Link href="/">Start learning</Link> to build concepts.
         </p>

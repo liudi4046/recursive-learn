@@ -14,7 +14,7 @@ export default function MapRoutePage({ params }: { params: Promise<{ topicId: st
   }
   if (!state) {
     return (
-      <main className="map-page">
+      <main className="mx-auto max-w-[1320px] px-10 py-12">
         <p>
           No learning session. <Link href="/">Start from home</Link>.
         </p>
@@ -23,7 +23,7 @@ export default function MapRoutePage({ params }: { params: Promise<{ topicId: st
   }
   if (state.activeTopicId !== topicId) {
     return (
-      <main className="map-page">
+      <main className="mx-auto max-w-[1320px] px-10 py-12">
         <p>This topic is not the active session. Open the map from your current session.</p>
         <p>
           <Link href={`/maps/${state.activeTopicId}`}>Open active topic map</Link> or <Link href="/">home</Link>.
