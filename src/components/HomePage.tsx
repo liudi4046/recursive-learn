@@ -8,6 +8,29 @@ import { IconArrowRight, IconGlobe, IconSearch } from "./Icons";
 const heroCardBase =
   "w-full rounded-ml border border-ml-line bg-ml-card p-3.5 shadow-ml-card";
 
+const heroLineY = "w-0.5 rounded-sm bg-ml-hero-line";
+
+/** Vertical connectors in the hero demo (tall = more air between cards). */
+const lineAboveRoot = "h-9";
+const lineDownToChild = "h-10";
+const lineBetweenSiblings = "h-8";
+
+/** Highlights phrases tied to child questions—plain text, not link-styled. */
+const em = "rounded-sm bg-ml-segment-bg px-0.5 font-medium text-ml-ink";
+
+function MasteryPill({ mastered, label }: { mastered: boolean; label: string }) {
+  return (
+    <span
+      className={[
+        "shrink-0 rounded-full border px-2 py-0.5 text-[0.65rem] font-semibold",
+        mastered ? "border-ml-green/40 bg-ml-green-soft text-ml-green" : "border-ml-yellow/45 bg-ml-yellow-soft text-ml-yellow"
+      ].join(" ")}
+    >
+      {label}
+    </span>
+  );
+}
+
 export function HomePage({
   onStart,
   continueNodeId
@@ -91,41 +114,51 @@ export function HomePage({
         </div>
         <div className="relative flex flex-col items-center gap-0 px-3 py-5" aria-hidden>
           <div className="flex flex-col items-center">
-            <div className="h-5 w-0.5 rounded-sm bg-ml-hero-line" />
+            <div className={`${lineAboveRoot} ${heroLineY}`} />
             <div className={`${heroCardBase} max-w-[280px]`}>
-              <div className="mb-2.5 h-9 w-9 rounded-[10px] bg-gradient-to-br from-ml-blue-soft to-[#d4e5ff] shadow-[inset_0_0_0_1px_rgba(0,102,255,0.12)]" />
-              <div>
-                <strong className="mb-1.5 block text-[0.95rem]">{t("homeDemo1Title")}</strong>
-                <p className="m-0 text-[0.78rem] leading-[1.45] text-ml-muted">{t("homeDemo1Body")}</p>
+              <div className="mb-1.5 flex items-center justify-between gap-2">
+                <strong className="min-w-0 text-[0.95rem] leading-tight text-ml-ink">{t("homeDemo1Title")}</strong>
+                <MasteryPill mastered={false} label={t("nodeUnmastered")} />
               </div>
+              <p className="m-0 text-[0.78rem] leading-[1.45] text-ml-muted">
+                {t("homeDemo1BodyBefore1")}
+                <span className={em}>{t("homeDemo1BodyEm1")}</span>
+                {t("homeDemo1BodyMid")}
+                <span className={em}>{t("homeDemo1BodyEm2")}</span>
+                {t("homeDemo1BodyAfter")}
+              </p>
             </div>
-            <div className="mb-0 flex flex-wrap items-start justify-center gap-5">
+            <div className="mb-0 mt-5 flex flex-wrap items-start justify-center gap-8 sm:gap-10">
               <div className="flex max-w-[200px] flex-col items-center">
-                <div className="h-3.5 w-0.5 rounded-sm bg-ml-hero-line" />
+                <div className={`${lineDownToChild} ${heroLineY}`} />
                 <div className={heroCardBase}>
-                  <div className="mb-2.5 h-9 w-9 rounded-[10px] bg-ml-blue-soft" />
-                  <div>
-                    <strong className="mb-1.5 block text-[0.95rem]">{t("homeDemo2Title")}</strong>
-                    <p className="m-0 text-[0.78rem] leading-[1.45] text-ml-muted">{t("homeDemo2Body")}</p>
+                  <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <strong className="min-w-0 text-[0.95rem] leading-tight text-ml-ink">{t("homeDemo2Title")}</strong>
+                    <MasteryPill mastered label={t("nodeMastered")} />
                   </div>
+                  <p className="m-0 text-[0.78rem] leading-[1.45] text-ml-muted">
+                    {t("homeDemo2BodyBefore")}
+                    <span className={em}>{t("homeDemo2BodyEm")}</span>
+                    {t("homeDemo2BodyAfter")}
+                  </p>
                 </div>
-                <div className="mt-1 h-3.5 w-0.5 rounded-sm bg-ml-hero-line" />
-                <div className={`${heroCardBase} mt-1 max-w-[220px]`}>
-                  <div className="mb-2.5 h-9 w-9 rounded-[10px] bg-ml-blue-soft" />
-                  <div>
-                    <strong className="mb-1.5 block text-[0.95rem]">{t("homeDemo3Title")}</strong>
-                    <p className="m-0 text-[0.78rem] leading-[1.45] text-ml-muted">{t("homeDemo3Body")}</p>
+                <div className={`mt-4 ${lineBetweenSiblings} ${heroLineY}`} />
+                <div className={`${heroCardBase} mt-4 max-w-[220px]`}>
+                  <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <strong className="min-w-0 text-[0.95rem] leading-tight text-ml-ink">{t("homeDemo3Title")}</strong>
+                    <MasteryPill mastered={false} label={t("nodeUnmastered")} />
                   </div>
+                  <p className="m-0 text-[0.78rem] leading-[1.45] text-ml-muted">{t("homeDemo3Body")}</p>
                 </div>
               </div>
               <div className="flex max-w-[200px] flex-col items-center">
-                <div className="h-3.5 w-0.5 rounded-sm bg-ml-hero-line" />
+                <div className={`${lineDownToChild} ${heroLineY}`} />
                 <div className={heroCardBase}>
-                  <div className="mb-2.5 h-9 w-9 rounded-[10px] bg-ml-blue-soft" />
-                  <div>
-                    <strong className="mb-1.5 block text-[0.95rem]">{t("homeDemo4Title")}</strong>
-                    <p className="m-0 text-[0.78rem] leading-[1.45] text-ml-muted">{t("homeDemo4Body")}</p>
+                  <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <strong className="min-w-0 text-[0.95rem] leading-tight text-ml-ink">{t("homeDemo4Title")}</strong>
+                    <MasteryPill mastered label={t("nodeMastered")} />
                   </div>
+                  <p className="m-0 text-[0.78rem] leading-[1.45] text-ml-muted">{t("homeDemo4Body")}</p>
                 </div>
               </div>
             </div>
