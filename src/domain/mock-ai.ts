@@ -5,16 +5,12 @@ export async function mockCreateNode(context: AskContext): Promise<CreateNodeOut
   if (context.question.toLowerCase().includes("q/k/v")) {
     return {
       title: "Q/K/V",
-      answer: "Q, K, and V are learned projections used by self-attention to compare tokens and aggregate information.",
-      conceptCandidate: "Q/K/V",
-      relatedConceptCandidates: [{ name: "Self-attention", relation: "part_of" }]
+      answer: "Q, K, and V are learned projections used by self-attention to compare tokens and aggregate information."
     };
   }
   return {
     title: context.question.replace(/[?？.!！。]/g, "").slice(0, 40),
-    answer: `This child node explains: ${context.question}`,
-    conceptCandidate: context.question.replace(/[?？.!！。]/g, "").slice(0, 40),
-    relatedConceptCandidates: []
+    answer: `This child node explains: ${context.question}`
   };
 }
 

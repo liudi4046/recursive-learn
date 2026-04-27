@@ -7,6 +7,14 @@ const MARK = {
   meta: "---ML-META---\n"
 } as const;
 
+/** Strips mistaken label prefixes models sometimes echo on the title line (e.g. 「标题」：). */
+function normalizeCreateChildTitleLine(raw: string): string {
+  let t = raw.trim();
+  t = t.replace(/^「?标题」?\s*[:：]\s*/u, "");
+  t = t.replace(/^title\s*[:：]\s*/iu, "");
+  return t.trim();
+}
+
 /**
  * Inclusive end index for the body: either start of `---ML-META---\n`, or a safe
  * end while the tail might still be an incomplete `meta` prefix (so we do not
@@ -42,7 +50,7 @@ export class CreateChildProtocolStreamParser {
     const after = ti + MARK.title.length;
     const lineEnd = this.buf.indexOf("\n", after);
     if (lineEnd < 0) return;
-    const title = this.buf.slice(after, lineEnd).trim();
+    const title = normalizeCreateChildTitleLine(this.buf.slice(after, lineEnd));
     if (title.length < 1) return;
     this.titleEmitted = true;
     this.onTitle(title);
@@ -82,7 +90,7 @@ export class CreateChildProtocolStreamParser {
     if (mi < 0) {
       throw new Error("Model output missing ---ML-META--- (required protocol line).");
     }
-    const title = b.slice(ti + MARK.title.length, bi).trim();
+    const title = normalizeCreateChildTitleLine(b.slice(ti + MARK.title.length, bi));
     const answer = b.slice(bodyStart, mi).trim();
     const jsonPart = b.slice(mi + MARK.meta.length).trim();
     if (!title) {
@@ -91,20 +99,12 @@ export class CreateChildProtocolStreamParser {
     if (answer.length < 1) {
       throw new Error("Model returned an empty body.");
     }
-    const parsedMeta = createChildStreamMetaJsonSchema.parse(JSON.parse(jsonPart) as unknown);
-    return createNodeOutputSchema.parse({
-      title,
-      answer,
-      conceptCandidate: parsedMeta.conceptCandidate,
-      relatedConceptCandidates: parsedMeta.relatedConceptCandidates
-    });
+    createChildStreamMetaJsonSchema.parse(JSON.parse(jsonPart) as unknown);
+    return createNodeOutputSchema.parse({ title, answer });
   }
 }
 
 export function buildCreateChildMockProtocolString(out: CreateNodeOutput): string {
-  const meta = JSON.stringify({
-    conceptCandidate: out.conceptCandidate,
-    relatedConceptCandidates: out.relatedConceptCandidates
-  });
+  const meta = JSON.stringify({});
   return `${MARK.title}${out.title}\n${MARK.body}${out.answer}\n${MARK.meta}${meta}`;
 }

@@ -12,7 +12,8 @@ import {
 } from "@/domain/map-tree-layout";
 import { getRootNode } from "@/domain/topic-tree";
 import type { LearningNode } from "@/domain/types";
-import { IconNodeCard } from "./Icons";
+import { useLocale } from "@/i18n/locale-context";
+import { IconMapTreeNode } from "./Icons";
 
 /** Softer grid like the design: light, airy. */
 const treeBg =
@@ -113,22 +114,23 @@ function buildConnectorElements(
 
 export function TopicNodeTreeView({
   state,
-  topicId,
+  mapRootId,
   q,
   selectedId,
   onSelect
 }: {
   state: AppState;
-  topicId: string;
+  mapRootId: string;
   q: string;
   selectedId: string;
   onSelect: (id: string) => void;
 }) {
-  const display = collectTreeDisplayNodeIds(state.nodes, topicId, "all", q);
-  const root = getRootNode(state.nodes, topicId);
-  const positions = root ? layoutTopicMapTree(state.nodes, topicId, display) : null;
+  const { t } = useLocale();
+  const display = collectTreeDisplayNodeIds(state.nodes, mapRootId, "all", q);
+  const root = getRootNode(state.nodes, mapRootId);
+  const positions = root ? layoutTopicMapTree(state.nodes, mapRootId, display) : null;
   const maxDepth =
-    root && display.has(root.id) ? getTreeMaxDepth(state.nodes, topicId, root.id, display) : 0;
+    root && display.has(root.id) ? getTreeMaxDepth(state.nodes, mapRootId, root.id, display) : 0;
 
   /** 100% = full panel width; tall maps scroll vertically so text stays readable. Adjust with − / +. */
   const [userZoom, setUserZoom] = useState(1);
@@ -144,7 +146,7 @@ export function TopicNodeTreeView({
 
   useEffect(() => {
     setUserZoom(1);
-  }, [topicId]);
+  }, [mapRootId]);
 
   useLayoutEffect(() => {
     if (width === 0) {
@@ -189,15 +191,15 @@ export function TopicNodeTreeView({
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [width, height, topicId, q]);
+  }, [width, height, mapRootId, q]);
 
   if (!root || !positions || !display.has(root.id)) {
     return (
       <section
         className={`flex min-h-[200px] items-center justify-center p-6 ${treeBg}`}
-        aria-label="Topic tree"
+        aria-label={t("treeTopic")}
       >
-        <p className="m-0 text-[0.95rem] text-ml-muted">No nodes match your search or filter.</p>
+        <p className="m-0 text-[0.95rem] text-ml-muted">{t("treeNoMatch")}</p>
       </section>
     );
   }
@@ -243,21 +245,19 @@ export function TopicNodeTreeView({
   return (
     <section
       className={`flex min-h-0 min-w-0 flex-1 flex-col border-0 ${treeBg}`}
-      aria-label="Topic tree"
+      aria-label={t("treeTopic")}
     >
       <div
-        className="flex flex-wrap items-center justify-end gap-1.5 border-b border-ml-line bg-ml-card/60 px-5 py-2"
+        className="flex flex-wrap items-center justify-end gap-1.5 bg-ml-card/60 px-5 py-2"
         role="toolbar"
-        aria-label="Map zoom"
+        aria-label={t("treeZoom")}
       >
-        <span className="select-none pr-0.5 text-[0.72rem] text-ml-muted max-[480px]:hidden">
-          100% = fit width, scroll to pan · Ctrl+scroll
-        </span>
+
         <div className="inline-flex items-center gap-0.5 rounded-full border border-ml-line bg-ml-card p-0.5">
           <button
             type="button"
             className="flex h-7 min-w-7 items-center justify-center rounded-full text-[0.95rem] font-medium leading-none text-ml-ink hover:bg-ml-blue-soft disabled:cursor-not-allowed disabled:opacity-40"
-            aria-label="Zoom out"
+            aria-label={t("treeZoomOut")}
             disabled={userZoom <= ZOOM_MIN + 1e-6}
             onClick={zoomOut}
           >
@@ -269,7 +269,7 @@ export function TopicNodeTreeView({
           <button
             type="button"
             className="flex h-7 min-w-7 items-center justify-center rounded-full text-[0.95rem] font-medium leading-none text-ml-ink hover:bg-ml-blue-soft disabled:cursor-not-allowed disabled:opacity-40"
-            aria-label="Zoom in"
+            aria-label={t("treeZoomIn")}
             disabled={userZoom >= ZOOM_MAX - 1e-6}
             onClick={zoomIn}
           >
@@ -281,7 +281,7 @@ export function TopicNodeTreeView({
           className="rounded-ml-sm border border-ml-line bg-ml-card px-2.5 py-1 text-[0.75rem] font-medium text-ml-ink hover:bg-ml-blue-soft"
           onClick={zoomReset}
         >
-          Reset
+          {t("treeReset")}
         </button>
       </div>
       <div
@@ -366,12 +366,15 @@ export function TopicNodeTreeView({
                 const n = nodeById.get(id);
                 if (!n) return null;
                 const master = n.status === "mastered";
+                const statusIcon = master ? "bg-ml-green-soft text-ml-green" : "bg-ml-yellow-soft text-ml-yellow";
+                const statusText = master ? "text-ml-green" : "text-ml-yellow";
+                const statusDot = master ? "bg-ml-green" : "bg-ml-yellow";
                 return (
                   <button
                     key={id}
                     type="button"
                     className={[
-                      "group absolute flex cursor-pointer items-stretch gap-2.5 rounded-ml border",
+                      "group absolute flex cursor-pointer items-center gap-2.5 rounded-ml border px-2.5 py-2",
                       "bg-ml-card text-left",
                       "shadow-[0_1px_2px_rgba(15,23,42,0.04),0_6px_18px_rgba(15,23,42,0.04)]",
                       "transition-[box-shadow,transform,border-color] duration-200",
@@ -391,29 +394,21 @@ export function TopicNodeTreeView({
                   >
                     <span
                       className={[
-                        "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center self-start rounded-md",
-                        master ? "bg-ml-green-soft text-ml-green" : "bg-ml-blue-soft text-ml-blue"
+                        "flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-md",
+                        statusIcon
                       ].join(" ")}
                       aria-hidden
                     >
-                      <IconNodeCard className="h-4 w-4" />
+                      <IconMapTreeNode className="h-3.5 w-3.5" />
                     </span>
-                    <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 pr-0.5">
+                    <span className="flex min-h-0 min-w-0 flex-1 flex-col justify-center gap-0.5 pr-0.5">
                       <span className="line-clamp-2 text-[0.8rem] font-semibold leading-tight tracking-[-0.01em] text-ml-ink">
                         {n.title}
                       </span>
                       <span
-                        className={[
-                          "inline-flex items-center gap-1.5 text-[0.72rem] font-medium",
-                          master ? "text-ml-green" : "text-ml-blue"
-                        ].join(" ")}
+                        className={["inline-flex items-center gap-1.5 text-[0.72rem] font-medium", statusText].join(" ")}
                       >
-                        <span
-                          className={[
-                            "h-1.5 w-1.5 shrink-0 rounded-full",
-                            master ? "bg-ml-green" : "bg-ml-blue"
-                          ].join(" ")}
-                        />
+                        <span className={["h-1.5 w-1.5 shrink-0 rounded-full", statusDot].join(" ")} />
                         {master ? "Mastered" : "Unmastered"}
                       </span>
                     </span>
@@ -430,25 +425,26 @@ export function TopicNodeTreeView({
 
 export function PathTraceTreeView({
   state: _state,
-  topicId: _topicId,
+  mapRootId: _mapRootId,
   path,
   activeNodeId
 }: {
   state: AppState;
-  topicId: string;
+  mapRootId: string;
   path: LearningNode[];
   activeNodeId: string;
 }) {
+  const { t } = useLocale();
   if (path.length === 0) {
     return (
-      <p className="m-0 text-center text-[0.88rem] text-ml-muted">No path to show.</p>
+      <p className="m-0 text-center text-[0.88rem] text-ml-muted">{t("treeNoPath")}</p>
     );
   }
 
   return (
     <ol
       className="m-0 flex h-[360px] w-full list-none flex-col items-center overflow-y-auto rounded-ml-sm border border-ml-line bg-ml-preview-bg p-3"
-      aria-label="Path from root to this node"
+      aria-label={t("treePath")}
     >
       {path.map((node, index) => {
         const isActive = node.id === activeNodeId;

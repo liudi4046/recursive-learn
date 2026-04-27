@@ -12,6 +12,8 @@
   --color-ml-blue-glow: rgba(0, 102, 255, 0.22);
   --color-ml-green: #12b76a;
   --color-ml-green-soft: #e6faf2;
+  --color-ml-yellow: #ca8a04;
+  --color-ml-yellow-soft: #fffbeb;
   --color-ml-toolbar: #fbfcfe;
   --color-ml-preview-bg: #fafbfd;
   --color-ml-hairline: #c5d5eb;
@@ -51,5 +53,30 @@
   input,
   textarea {
     font: inherit;
+  }
+}
+
+/* WebSourcesCallout: native <details> chevron + hide default marker */
+@layer components {
+  .web-ref-details > summary {
+    list-style: none;
+  }
+  .web-ref-details > summary::-webkit-details-marker {
+    display: none;
+  }
+  .web-ref-details[open] .web-ref-chevron {
+    transform: rotate(180deg);
+  }
+  .web-ref-details[open] .web-ref-hint-open {
+    display: inline;
+  }
+  .web-ref-details[open] .web-ref-hint-closed {
+    display: none;
+  }
+  .web-ref-details:not([open]) .web-ref-hint-open {
+    display: none;
+  }
+  .web-ref-details:not([open]) .web-ref-hint-closed {
+    display: inline;
   }
 }

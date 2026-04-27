@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import type { ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({
@@ -9,15 +10,19 @@ vi.mock("next/navigation", () => ({
   })
 }));
 import { createInitialState, handleAskResult } from "@/domain/app-state";
+import { LocaleProvider } from "@/i18n/locale-context";
 import { HomePage } from "./HomePage";
 import { NodeDetailPage } from "./NodeDetailPage";
 import { LearningMapPage } from "./LearningMapPage";
-import { KnowledgeBasePage } from "./KnowledgeBasePage";
+
+function renderWithLocale(ui: ReactElement) {
+  return render(<LocaleProvider>{ui}</LocaleProvider>);
+}
 
 describe("pages", () => {
   it("renders homepage start form", () => {
-    render(<HomePage onStart={() => undefined} />);
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/learning map/i);
+    renderWithLocale(<HomePage onStart={() => undefined} />);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/learn the recursive way/i);
     expect(screen.getByPlaceholderText("What do you want to learn?")).toBeInTheDocument();
   });
 
@@ -47,15 +52,45 @@ describe("pages", () => {
           : node
       )
     };
-    render(<NodeDetailPage state={state} onStateChange={() => undefined} />);
+    renderWithLocale(<NodeDetailPage state={state} onStateChange={() => undefined} />);
     expect(screen.getAllByRole("button", { name: "Create child node" }).length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Just ask" })).toBeInTheDocument();
-    const sidebar = screen.getByRole("complementary", { name: "随问记录" });
+    const sidebar = screen.getByRole("complementary", { name: "Just ask log" });
     expect(sidebar).toBeInTheDocument();
     expect(within(sidebar).getAllByRole("button")).toHaveLength(2);
     fireEvent.click(within(sidebar).getByRole("button", { name: /How does attention/ }));
-    expect(within(sidebar).getByRole("button", { name: /当前随问.*How does attention/s })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /^随问记录/ })).not.toBeInTheDocument();
+    expect(within(sidebar).getByRole("button", { name: /Current.*How does attention/s })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Just ask log/ })).not.toBeInTheDocument();
+  });
+
+  it("sends the web search option with node questions", async () => {
+    const originalFetch = globalThis.fetch;
+    const fetchMock = vi.fn(async () => {
+      return new Response('{"done":true,"full":"Answer"}\n', {
+        status: 200,
+        headers: { "Content-Type": "application/x-ndjson" }
+      });
+    });
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    try {
+      const state = createInitialState("Transformer");
+      renderWithLocale(<NodeDetailPage state={state} onStateChange={() => undefined} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Web search" }));
+      fireEvent.click(screen.getByRole("button", { name: "Just ask" }));
+      fireEvent.change(screen.getByLabelText("Ask a question"), {
+        target: { value: "What changed recently?" }
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Submit to just ask" }));
+
+      await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+      const args = vi.mocked(fetchMock).mock.calls[0] as unknown as [string, RequestInit];
+      const body = JSON.parse(String(args[1].body)) as { webSearch?: boolean };
+      expect(body.webSearch).toBe(true);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   it("renders the node-detail learning trace as a compact scrollable path list", () => {
@@ -66,8 +101,6 @@ describe("pages", () => {
       output: {
         title: "Self-attention",
         answer: "Self-attention compares tokens with each other.",
-        conceptCandidate: null,
-        relatedConceptCandidates: []
       }
     });
     state = handleAskResult(state, {
@@ -76,12 +109,10 @@ describe("pages", () => {
       output: {
         title: "Q/K/V projections",
         answer: "Q/K/V are learned projections used by attention.",
-        conceptCandidate: null,
-        relatedConceptCandidates: []
       }
     });
 
-    render(<NodeDetailPage state={state} onStateChange={() => undefined} />);
+    renderWithLocale(<NodeDetailPage state={state} onStateChange={() => undefined} />);
 
     const preview = screen.getByRole("list", { name: "Path from root to this node" });
     expect(within(preview).getAllByRole("listitem")).toHaveLength(3);
@@ -94,17 +125,11 @@ describe("pages", () => {
     expect(screen.queryByRole("toolbar", { name: "Trace preview zoom" })).not.toBeInTheDocument();
   });
 
-  it("renders learning map as a tree page", () => {
+  it("renders the full-session tree view", () => {
     const state = createInitialState("Transformer");
-    render(<LearningMapPage state={state} onStateChange={() => undefined} />);
+    renderWithLocale(<LearningMapPage state={state} onStateChange={() => undefined} />);
     expect(screen.getByRole("heading", { level: 1, name: "Transformer" })).toBeInTheDocument();
     expect(screen.getAllByText("Unmastered").length).toBeGreaterThan(0);
-  });
-
-  it("renders knowledge base as a network page", () => {
-    const state = createInitialState("Transformer");
-    render(<KnowledgeBasePage state={state} />);
-    expect(screen.getByText("Knowledge Base")).toBeInTheDocument();
-    expect(screen.getByLabelText("Concept network")).toBeInTheDocument();
+    expect(screen.getByLabelText("Answer preview")).toHaveTextContent(/Start learning Transformer/);
   });
 });

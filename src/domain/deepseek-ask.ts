@@ -1,9 +1,26 @@
-import type { LearningNode } from "./types";
+import type { LlmProviderId } from "@/lib/deepseek-settings";
+import { LLM_PROVIDER_BASE_URL } from "@/lib/deepseek-settings";
 import type { AskContext } from "./context";
-import type { CreateNodeOutput } from "./types";
 import { CreateChildProtocolStreamParser } from "./create-child-stream-protocol";
+import type { CreateNodeOutput } from "./types";
+import type { LearningNode } from "./types";
+import { formatWebSearchResultsForPrompt } from "./web-search";
 
-const DEEPSEEK_CHAT_URL = "https://api.deepseek.com/v1/chat/completions";
+export type LlmRouting = {
+  provider: LlmProviderId;
+  apiKey: string;
+  model: string;
+};
+
+const ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
+
+function trimBaseUrl(base: string): string {
+  return base.replace(/\/+$/, "");
+}
+
+function chatCompletionsUrl(baseUrl: string): string {
+  return `${trimBaseUrl(baseUrl)}/chat/completions`;
+}
 
 function nodeBlocksDigest(node: LearningNode): string {
   if (node.contentBlocks.length === 0) {
@@ -31,23 +48,18 @@ function justAskDigestForPrompt(node: LearningNode): string {
 }
 
 /**
- * 上文：根节点、此前问与答记录、可选相关知识、最新要答的问题。流式/仅问/建子段共用。
+ * 上文：路径上各条目的问与答记录、可选相关知识、可选检索摘要、最新要答的问题。流式/仅问/建子段共用。
  */
 export function buildPromptContextForAsk(ctx: AskContext): string {
-  const rootTitle = ctx.pathNodes[0]?.title ?? ctx.topicTitle;
   const pathSection = ctx.pathNodes
     .map((node) => {
       return `### ${node.title}\n${nodeBlocksDigest(node)}${justAskDigestForPrompt(node)}`;
     })
     .join("\n\n");
-  const related = ctx.relatedConcepts
-    .map((c) => (c.description ? `${c.name}：${c.description}` : c.name))
-    .join("\n");
   return [
-    `根节点：${rootTitle}`,
     "用户此前已进行多轮问与答。下为按顺序整理出来的记录。每个「###」小标题只用于区分不同条目的范围；条目下依次是当时留下的提问与回答，同一条下可以有多问多答。",
     pathSection,
-    related ? `相关知识：\n${related}` : "",
+    ctx.webSearchResults.length > 0 ? formatWebSearchResultsForPrompt(ctx.webSearchResults) : "",
     `最新问题：\n${ctx.question}`
   ]
     .filter(Boolean)
@@ -55,9 +67,10 @@ export function buildPromptContextForAsk(ctx: AskContext): string {
 }
 
 const JUST_ASK_USER_SUFFIX =
-  "就「最新问题」写一段直接回答。尽量用与问题相同的主要语言。可用纯文本或轻量 Markdown。";
+  "尽量使用与问题相同的主要语言；需要时可用 Markdown。";
 
-const JUST_ASK_SYSTEM = "根据上文，只写对最新问题的回答，不要题外话。";
+const JUST_ASK_SYSTEM =
+  "用户消息中先是与当前问题相关的背景，最后一段是「最新问题」。请回答该问题。";
 
 function getJustAskUserContent(ctx: AskContext): string {
   return [buildPromptContextForAsk(ctx), JUST_ASK_USER_SUFFIX].join("\n\n");
@@ -75,13 +88,15 @@ const CREATE_CHILD_PROTOCOL_SYSTEM = "分节与分隔行必须和 user 中约定
 /**
  * OpenAI-style SSE: stream `delta.content` to `onToken`, return the full (trimmed) string.
  */
-async function streamChatCompletionDeltas(
+async function streamOpenAiCompatibleDeltas(
+  baseUrl: string,
   model: string,
   apiKey: string,
   messages: Array<{ role: "system" | "user" | "assistant"; content: string }>,
-  onToken: (delta: string) => void
+  onToken: (delta: string) => void,
+  errorLabel: string
 ): Promise<string> {
-  const res = await fetch(DEEPSEEK_CHAT_URL, {
+  const res = await fetch(chatCompletionsUrl(baseUrl), {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -96,10 +111,10 @@ async function streamChatCompletionDeltas(
   });
   if (!res.ok) {
     const errBody = await res.text();
-    throw new Error(`DeepSeek API ${res.status}: ${errBody.slice(0, 800)}`);
+    throw new Error(`${errorLabel} ${res.status}: ${errBody.slice(0, 800)}`);
   }
   if (!res.body) {
-    throw new Error("DeepSeek returned an empty body.");
+    throw new Error(`${errorLabel} returned an empty body.`);
   }
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -137,25 +152,124 @@ async function streamChatCompletionDeltas(
 }
 
 /**
- * Stream tokens from DeepSeek; calls `onToken` for each `delta.content` chunk.
- * Returns the full answer (trimmed) for persistence.
+ * Anthropic Messages API SSE (`content_block_delta` with `text_delta`).
  */
-export async function streamDeepseekJustAsk(
-  ctx: AskContext,
+async function streamAnthropicText(
   model: string,
   apiKey: string,
+  system: string,
+  userContent: string,
   onToken: (delta: string) => void
 ): Promise<string> {
-  return streamChatCompletionDeltas(model, apiKey, getJustAskMessages(ctx), onToken);
+  const res = await fetch(ANTHROPIC_MESSAGES_URL, {
+    method: "POST",
+    headers: {
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: 8192,
+      stream: true,
+      system,
+      messages: [{ role: "user", content: userContent }]
+    })
+  });
+  if (!res.ok) {
+    const errBody = await res.text();
+    throw new Error(`Anthropic API ${res.status}: ${errBody.slice(0, 800)}`);
+  }
+  if (!res.body) {
+    throw new Error("Anthropic returned an empty body.");
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let full = "";
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    for (;;) {
+      const n = buffer.indexOf("\n");
+      if (n < 0) break;
+      let line = buffer.slice(0, n);
+      buffer = buffer.slice(n + 1);
+      if (line.endsWith("\r")) line = line.slice(0, -1);
+      const t = line.trim();
+      if (!t.startsWith("data: ")) continue;
+      const data = t.slice(6);
+      if (data === "[DONE]") continue;
+      let json: {
+        type?: string;
+        error?: { message?: string };
+        delta?: { type?: string; text?: string };
+      };
+      try {
+        json = JSON.parse(data);
+      } catch {
+        continue;
+      }
+      if (json.type === "error") {
+        throw new Error(json.error?.message ?? "Anthropic stream error");
+      }
+      if (
+        json.type === "content_block_delta" &&
+        json.delta?.type === "text_delta" &&
+        json.delta.text
+      ) {
+        const c = json.delta.text;
+        full += c;
+        onToken(c);
+      }
+    }
+  }
+  return full.trim();
+}
+
+function openAiCompatibleBase(provider: Exclude<LlmProviderId, "claude">): string {
+  return LLM_PROVIDER_BASE_URL[provider];
+}
+
+function providerErrorLabel(provider: LlmProviderId): string {
+  return `${provider} API`;
+}
+
+/**
+ * Stream tokens from the configured LLM; returns the full answer (trimmed) for persistence.
+ */
+export async function streamLlmJustAsk(
+  ctx: AskContext,
+  routing: LlmRouting,
+  onToken: (delta: string) => void
+): Promise<string> {
+  if (routing.provider === "claude") {
+    return streamAnthropicText(
+      routing.model,
+      routing.apiKey,
+      JUST_ASK_SYSTEM,
+      getJustAskUserContent(ctx),
+      onToken
+    );
+  }
+  const base = openAiCompatibleBase(routing.provider);
+  return streamOpenAiCompatibleDeltas(
+    base,
+    routing.model,
+    routing.apiKey,
+    getJustAskMessages(ctx),
+    onToken,
+    providerErrorLabel(routing.provider)
+  );
 }
 
 /**
  * Single streamed completion: title + body + JSON metadata in a fixed wire format. Passes only body text to onBodyDelta.
  */
-export async function streamDeepseekCreateChildProtocol(
+export async function streamLlmCreateChildProtocol(
   ctx: AskContext,
-  model: string,
-  apiKey: string,
+  routing: LlmRouting,
   onBodyDelta: (s: string) => void,
   onTitleLine?: (t: string) => void
 ): Promise<CreateNodeOutput> {
@@ -165,26 +279,67 @@ export async function streamDeepseekCreateChildProtocol(
     "请一次写完回复，分四段，行首的标记须与下面逐字相同（且各占单独一行，顺序不可变）：",
     "",
     "第一行只写：---ML-TITLE---",
-    "下一行写「标题」：用一句话概括上面「最新问题」在问什么，中文时该行总字数（汉字）不超过 10 个；以英文为主时该行不超过 10 个词。",
+    "下一行只写节点标题这一行文字本身：用一句话概括上面「最新问题」在问什么。该行不要出现「标题」二字，不要用引号或冒号起头（不要写成「标题」：… 这种形式）；中文时该行总字数（汉字）不超过 10 个；以英文为主时该行不超过 10 个词。",
     "再下一行只写：---ML-BODY---",
     "接着写对「最新问题」的讲解正文，可用轻量 Markdown。正文中不要出现子串：---ML-META---。",
     "再下一行只写：---ML-META---",
-    "最后一行是单个 JSON 对象，不用代码块。键为 conceptCandidate（string 或 null）与 relatedConceptCandidates（数组，元素 { name, relation }，relation 只能是 related、part_of、uses、used_by 之一）。"
+    "最后一行是单个 JSON 对象，不用代码块。可为空对象 {}（保留该行以兼容协议）。"
   ].join("\n");
   const parser = new CreateChildProtocolStreamParser(onTitleLine);
-  const full = await streamChatCompletionDeltas(
-    model,
-    apiKey,
-    [
-      { role: "system", content: CREATE_CHILD_PROTOCOL_SYSTEM },
-      { role: "user", content: user }
-    ],
-    (delta) => {
-      onBodyDelta(parser.append(delta));
-    }
-  );
+
+  const full =
+    routing.provider === "claude"
+      ? await streamAnthropicText(
+          routing.model,
+          routing.apiKey,
+          CREATE_CHILD_PROTOCOL_SYSTEM,
+          user,
+          (delta) => {
+            onBodyDelta(parser.append(delta));
+          }
+        )
+      : await streamOpenAiCompatibleDeltas(
+          openAiCompatibleBase(routing.provider),
+          routing.model,
+          routing.apiKey,
+          [
+            { role: "system", content: CREATE_CHILD_PROTOCOL_SYSTEM },
+            { role: "user", content: user }
+          ],
+          (delta) => {
+            onBodyDelta(parser.append(delta));
+          },
+          providerErrorLabel(routing.provider)
+        );
+
   if (full.length < 1) {
     throw new Error("Model returned an empty child reply.");
   }
   return parser.finish();
+}
+
+/** @deprecated Use streamLlmJustAsk with routing */
+export async function streamDeepseekJustAsk(
+  ctx: AskContext,
+  model: string,
+  apiKey: string,
+  onToken: (delta: string) => void
+): Promise<string> {
+  return streamLlmJustAsk(ctx, { provider: "deepseek", model, apiKey }, onToken);
+}
+
+/** @deprecated Use streamLlmCreateChildProtocol with routing */
+export async function streamDeepseekCreateChildProtocol(
+  ctx: AskContext,
+  model: string,
+  apiKey: string,
+  onBodyDelta: (s: string) => void,
+  onTitleLine?: (t: string) => void
+): Promise<CreateNodeOutput> {
+  return streamLlmCreateChildProtocol(
+    ctx,
+    { provider: "deepseek", model, apiKey },
+    onBodyDelta,
+    onTitleLine
+  );
 }

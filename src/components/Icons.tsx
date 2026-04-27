@@ -29,22 +29,34 @@ export function IconLearningMap({ className }: { className?: string }) {
   );
 }
 
-export function IconKnowledgeBase({ className }: { className?: string }) {
-  return (
-    <svg className={className} width="18" height="18" viewBox="0 0 18 18" aria-hidden>
-      <circle cx="5" cy="5" r="2" stroke="currentColor" strokeWidth="1.3" fill="none" />
-      <circle cx="13" cy="6" r="2" stroke="currentColor" strokeWidth="1.3" fill="none" />
-      <circle cx="9" cy="13" r="2" stroke="currentColor" strokeWidth="1.3" fill="none" />
-      <path d="M6.3 6.5l2.2 4.5M11.7 7.2L10 11.2M7.5 12.5l3 0" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 export function IconSearch({ className }: { className?: string }) {
   return (
     <svg className={className} width="18" height="18" viewBox="0 0 18 18" aria-hidden>
       <circle cx="7.5" cy="7.5" r="4.5" stroke="currentColor" strokeWidth="1.5" fill="none" />
       <path d="M11 11l4.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** Globe / internet — use for “search the web”, not in-app keyword search. Classic outline (Feather/Lucide style). */
+export function IconGlobe({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      aria-hidden
+      fill="none"
+    >
+      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M2 12h20" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path
+        d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -124,6 +136,20 @@ export function IconClose({ className }: { className?: string }) {
   );
 }
 
+export function IconTrash({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="18" height="18" viewBox="0 0 24 24" aria-hidden fill="none">
+      <path
+        d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14zM10 11v6M14 11v6"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function IconChevronRight({ className }: { className?: string }) {
   return (
     <svg className={className} width="16" height="16" viewBox="0 0 16 16" aria-hidden>
@@ -155,6 +181,27 @@ export function IconNodeCard({ className }: { className?: string }) {
       <rect x="3" y="4" width="14" height="12" rx="2" stroke="currentColor" strokeWidth="1.3" fill="none" />
       <circle cx="7" cy="9" r="1.2" fill="currentColor" />
       <circle cx="13" cy="9" r="1.2" fill="currentColor" />
+    </svg>
+  );
+}
+
+/** Note / topic card — question-tree nodes in the full-session view (replaces robot-style IconNodeCard on the canvas). */
+export function IconMapTreeNode({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="20" height="20" viewBox="0 0 20 20" aria-hidden>
+      <path
+        d="M6 3.5h8.5a1 1 0 011 1v11a1 1 0 01-1 1H6a1.5 1.5 0 01-1.5-1.5v-10A1.5 1.5 0 016 3.5z"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        fill="none"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M8 8.5h4.5M8 11h4.5M8 13.5h2.5"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }

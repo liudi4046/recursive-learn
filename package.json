@@ -30,6 +30,7 @@
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "fake-indexeddb": "^6.2.5",
     "jsdom": "latest",
     "postcss": "^8.5.12",
     "tailwindcss": "^4.2.4",

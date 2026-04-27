@@ -10,7 +10,7 @@ export const SIBLING_H_GAP = 10;
 /** Distance between level baselines; keep > `MAP_TREE_CARD.h` for clear y spacing. */
 export const LEVEL_V_GAP = 112;
 
-/** Card size + vertical rhythm for layout; defaults match the full learning map. */
+/** Card size + vertical rhythm for layout; defaults match the full-session tree view. */
 export type MapTreeLayoutMetrics = {
   cardW: number;
   cardH: number;
@@ -28,14 +28,14 @@ export const MAP_TREE_LAYOUT_DEFAULT: MapTreeLayoutMetrics = {
  */
 export function collectTreeDisplayNodeIds(
   nodes: LearningNode[],
-  topicId: string,
+  mapRootId: string,
   filter: "all" | "unmastered" | "mastered",
   q: string
 ): Set<string> {
   const qLower = q.trim().toLowerCase();
   const direct = new Set<string>();
   for (const n of nodes) {
-    if (n.topicId !== topicId) continue;
+    if (n.mapRootId !== mapRootId) continue;
     if (matchesNodeFilter(n, filter) && n.title.toLowerCase().includes(qLower)) {
       direct.add(n.id);
     }
@@ -54,19 +54,19 @@ export function collectTreeDisplayNodeIds(
 
 function sortedDisplayChildren(
   nodes: LearningNode[],
-  topicId: string,
+  mapRootId: string,
   parentId: string,
   display: Set<string>,
   widthMemo: Map<string, number> | undefined,
   metrics: MapTreeLayoutMetrics
 ): LearningNode[] {
   const memo = widthMemo ?? new Map<string, number>();
-  return getChildrenOf(nodes, topicId, parentId)
+  return getChildrenOf(nodes, mapRootId, parentId)
     .filter((c) => display.has(c.id))
     .slice()
     .sort((a, b) => {
-      const wa = measureSubtreeWidth(nodes, topicId, a, display, memo, metrics);
-      const wb = measureSubtreeWidth(nodes, topicId, b, display, memo, metrics);
+      const wa = measureSubtreeWidth(nodes, mapRootId, a, display, memo, metrics);
+      const wb = measureSubtreeWidth(nodes, mapRootId, b, display, memo, metrics);
       if (wb !== wa) {
         return wb - wa;
       }
@@ -111,13 +111,13 @@ function getRequiredShift(
  */
 function buildRelativeLayout(
   nodes: LearningNode[],
-  topicId: string,
+  mapRootId: string,
   node: LearningNode,
   display: Set<string>,
   widthMemo: Map<string, number>,
   metrics: MapTreeLayoutMetrics
 ): RelativeLayout {
-  const children = sortedDisplayChildren(nodes, topicId, node.id, display, widthMemo, metrics);
+  const children = sortedDisplayChildren(nodes, mapRootId, node.id, display, widthMemo, metrics);
   const positions = new Map<string, RelativePosition>();
   const contours = new Map<number, Contour>();
 
@@ -129,7 +129,7 @@ function buildRelativeLayout(
 
   const childRoots: number[] = [];
   for (const child of children) {
-    const childLayout = buildRelativeLayout(nodes, topicId, child, display, widthMemo, metrics);
+    const childLayout = buildRelativeLayout(nodes, mapRootId, child, display, widthMemo, metrics);
     const shift = contours.size === 0 ? 0 : getRequiredShift(contours, childLayout.contours, 1);
     const childRoot = childLayout.positions.get(child.id);
     if (childRoot) {
@@ -159,7 +159,7 @@ function buildRelativeLayout(
 
 export function measureSubtreeWidth(
   nodes: LearningNode[],
-  topicId: string,
+  mapRootId: string,
   node: LearningNode,
   display: Set<string>,
   widthMemo = new Map<string, number>(),
@@ -169,7 +169,7 @@ export function measureSubtreeWidth(
   if (cached !== undefined) {
     return cached;
   }
-  const layout = buildRelativeLayout(nodes, topicId, node, display, widthMemo, metrics);
+  const layout = buildRelativeLayout(nodes, mapRootId, node, display, widthMemo, metrics);
   let left = Infinity;
   let right = -Infinity;
   for (const c of layout.contours.values()) {
@@ -189,17 +189,17 @@ export type MapTreePosition = { left: number; top: number };
  */
 export function layoutTopicMapTree(
   nodes: LearningNode[],
-  topicId: string,
+  mapRootId: string,
   display: Set<string>,
   metrics: MapTreeLayoutMetrics = MAP_TREE_LAYOUT_DEFAULT
 ): Map<string, MapTreePosition> | null {
-  const root = getRootNode(nodes, topicId);
+  const root = getRootNode(nodes, mapRootId);
   if (!root || !display.has(root.id)) {
     return null;
   }
   const positions = new Map<string, MapTreePosition>();
 
-  const layout = buildRelativeLayout(nodes, topicId, root, display, new Map(), metrics);
+  const layout = buildRelativeLayout(nodes, mapRootId, root, display, new Map(), metrics);
   let minLeft = Infinity;
   for (const p of layout.positions.values()) {
     minLeft = Math.min(minLeft, p.centerX - metrics.cardW / 2);
@@ -233,13 +233,13 @@ export function getMapTreeCanvasSize(
 
 export function getTreeMaxDepth(
   nodes: LearningNode[],
-  topicId: string,
+  mapRootId: string,
   rootId: string,
   display: Set<string>,
   metrics: MapTreeLayoutMetrics = MAP_TREE_LAYOUT_DEFAULT
 ): number {
   function depthFrom(id: string, d: number): number {
-    const children = sortedDisplayChildren(nodes, topicId, id, display, undefined, metrics);
+    const children = sortedDisplayChildren(nodes, mapRootId, id, display, undefined, metrics);
     if (children.length === 0) return d;
     return Math.max(...children.map((c) => depthFrom(c.id, d + 1)));
   }

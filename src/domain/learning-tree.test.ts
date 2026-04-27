@@ -28,18 +28,16 @@ function withTraversalLimit(node: LearningNode, limit = 10): LearningNode {
 }
 
 describe("learning tree domain", () => {
-  it("creates a topic with one unmastered root node", () => {
+  it("creates a map with one unmastered root node", () => {
     const session = createTopicWithRoot("Transformers", "A transformer is a neural network architecture.");
+    const root = session.nodes[0]!;
 
-    expect(session.topic.title).toBe("Transformers");
-    expect(session.topic.id).toMatch(/^topic_[A-Za-z0-9_-]{8}$/);
     expect(session.nodes).toHaveLength(1);
-    expect(session.activeNodeId).toBe(session.nodes[0].id);
-    expect(session.nodes[0]).toMatchObject({
+    expect(session.activeNodeId).toBe(root.id);
+    expect(root).toMatchObject({
       id: expect.stringMatching(/^node_[A-Za-z0-9_-]{8}$/),
-      topicId: session.topic.id,
+      mapRootId: root.id,
       parentNodeId: null,
-      linkedConceptId: null,
       title: "Transformers",
       status: "unmastered"
     });
@@ -57,17 +55,14 @@ describe("learning tree domain", () => {
     const session = createTopicWithRoot("Transformers", "A transformer is a neural network architecture.");
     const output: CreateNodeOutput = {
       title: "What is self-attention?",
-      answer: "Self-attention compares tokens with each other.",
-      conceptCandidate: "Self-attention",
-      relatedConceptCandidates: []
+      answer: "Self-attention compares tokens with each other."
     };
 
     const child = createChildNode(session.nodes[0], output);
 
     expect(child).toMatchObject({
-      topicId: session.topic.id,
+      mapRootId: session.nodes[0].id,
       parentNodeId: session.nodes[0].id,
-      linkedConceptId: null,
       title: "What is self-attention?",
       status: "unmastered"
     });
@@ -124,15 +119,11 @@ describe("learning tree domain", () => {
     const session = createTopicWithRoot("Transformers", "A transformer is a neural network architecture.");
     const selected = createChildNode(session.nodes[0], {
       title: "What is self-attention?",
-      answer: "Self-attention compares tokens with each other.",
-      conceptCandidate: null,
-      relatedConceptCandidates: []
+      answer: "Self-attention compares tokens with each other."
     });
     const sibling = createChildNode(session.nodes[0], {
       title: "What is an embedding?",
-      answer: "An embedding is a learned vector representation.",
-      conceptCandidate: null,
-      relatedConceptCandidates: []
+      answer: "An embedding is a learned vector representation."
     });
 
     const path = getNodePath([session.nodes[0], selected, sibling], selected.id);

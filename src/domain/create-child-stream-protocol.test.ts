@@ -36,13 +36,27 @@ describe("CreateChildProtocolStreamParser", () => {
     const result = p.finish();
     expect(result.title).toBe("My Title");
     expect(result.answer).toBe("Hello world.");
-    expect(result.conceptCandidate).toBe("C");
+  });
+
+  it("strips mistaken 「标题」： prefix from the title line", () => {
+    const s =
+      "---ML-TITLE---\n「标题」：解释LLM局限需验证\n---ML-BODY---\nbody\n---ML-META---\n{}";
+    const p = new CreateChildProtocolStreamParser();
+    for (const ch of s) p.append(ch);
+    expect(p.finish().title).toBe("解释LLM局限需验证");
+  });
+
+  it("onTitle receives normalized title when model adds a label prefix", () => {
+    const titles: string[] = [];
+    const p = new CreateChildProtocolStreamParser((t) => titles.push(t));
+    p.append("---ML-TITLE---\n「标题」：总结短句\n");
+    expect(titles).toEqual(["总结短句"]);
   });
 
   it("handles chunks split across markers", () => {
     const s =
       "---ML-TI" + "TLE---\nT\n---ML" + "-BODY---\nab\n" + "---ML-META" + "---\n" +
-      JSON.stringify({ conceptCandidate: null, relatedConceptCandidates: [] });
+      JSON.stringify({});
     const p = new CreateChildProtocolStreamParser();
     let body = "";
     for (const part of s.match(/[\s\S]{1,3}/g) ?? []) {
@@ -59,12 +73,11 @@ describe("buildCreateChildMockProtocolString", () => {
   it("round-trips through the protocol parser", async () => {
     const session = createTopicWithRoot("T", "root");
     const context = buildAskContext({
-      topic: session.topic,
+      mapRoot: { title: session.nodes[0].title },
       nodes: session.nodes,
       activeNodeId: session.activeNodeId,
       question: "What is attention?",
-      mode: "create_child_node",
-      relatedConcepts: []
+      mode: "create_child_node"
     });
     const out = await mockCreateNode(context);
     const protocol = buildCreateChildMockProtocolString(out);

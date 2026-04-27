@@ -29,24 +29,24 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     setStateInternal(next);
   }, []);
 
-  const hydrate = useCallback(() => {
+  const hydrate = useCallback(async () => {
     try {
-      const stored = loadState();
+      const stored = await loadState();
       if (stored) setStateInternal(stored);
     } catch {
-      clearStoredState();
+      await clearStoredState();
     }
     setRehydrated(true);
   }, []);
 
   useLayoutEffect(() => {
-    hydrate();
+    void hydrate();
   }, [hydrate]);
 
   useEffect(() => {
     if (!rehydrated) return;
-    if (state) saveState(state);
-    else clearStoredState();
+    if (state) void saveState(state);
+    else void clearStoredState();
   }, [rehydrated, state]);
 
   const value = useMemo(

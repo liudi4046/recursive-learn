@@ -3,8 +3,8 @@ import "./globals.css";
 import { Providers } from "./Providers";
 
 export const metadata: Metadata = {
-  title: "MapLearn",
-  description: "Recursive AI learning maps and concept networks"
+  title: "Recursive Learn",
+  description: "Recursive learning with AI—follow up on every question until it’s clear."
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

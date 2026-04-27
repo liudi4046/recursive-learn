@@ -1,26 +1,56 @@
 import type { LearningNode } from "./types";
 
-export function getRootNode(nodes: LearningNode[], topicId: string): LearningNode | undefined {
-  return nodes.find((n) => n.topicId === topicId && n.parentNodeId === null);
+/** `mapRootId` is the root node’s id for that map. */
+export function getRootNode(nodes: LearningNode[], mapRootId: string): LearningNode | undefined {
+  return nodes.find((n) => n.id === mapRootId && n.parentNodeId === null);
 }
 
 export function getChildrenOf(
   nodes: LearningNode[],
-  topicId: string,
+  mapRootId: string,
   parentId: string | null
 ): LearningNode[] {
-  return nodes.filter((n) => n.topicId === topicId && n.parentNodeId === parentId);
+  return nodes.filter((n) => n.mapRootId === mapRootId && n.parentNodeId === parentId);
 }
 
-export function orderNodesDepthFirst(nodes: LearningNode[], topicId: string): LearningNode[] {
-  const root = getRootNode(nodes, topicId);
+/** All node ids in the subtree rooted at `rootId` (inclusive), same map only. */
+export function collectSubtreeNodeIds(
+  nodes: LearningNode[],
+  mapRootId: string,
+  rootId: string
+): Set<string> {
+  const root = nodes.find((n) => n.id === rootId);
+  if (!root || root.mapRootId !== mapRootId) {
+    return new Set();
+  }
+  const byParent = new Map<string | null, string[]>();
+  for (const n of nodes) {
+    if (n.mapRootId !== mapRootId) continue;
+    const p = n.parentNodeId;
+    if (!byParent.has(p)) byParent.set(p, []);
+    byParent.get(p)!.push(n.id);
+  }
+  const out = new Set<string>();
+  const stack = [rootId];
+  while (stack.length) {
+    const id = stack.pop()!;
+    if (out.has(id)) continue;
+    out.add(id);
+    const kids = byParent.get(id);
+    if (kids) for (const k of kids) stack.push(k);
+  }
+  return out;
+}
+
+export function orderNodesDepthFirst(nodes: LearningNode[], mapRootId: string): LearningNode[] {
+  const root = getRootNode(nodes, mapRootId);
   if (!root) return [];
 
   const out: LearningNode[] = [];
 
   function walk(node: LearningNode) {
     out.push(node);
-    const children = getChildrenOf(nodes, topicId, node.id).slice().sort((a, b) => a.title.localeCompare(b.title));
+    const children = getChildrenOf(nodes, mapRootId, node.id).slice().sort((a, b) => a.title.localeCompare(b.title));
     for (const child of children) {
       walk(child);
     }

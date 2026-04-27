@@ -5,10 +5,9 @@ import type { LearningNode } from "./types";
 function node(id: string, parentNodeId: string | null, title = id): LearningNode {
   return {
     id,
-    topicId: "topic",
+    mapRootId: "root",
     parentNodeId,
     title,
-    linkedConceptId: null,
     contentBlocks: [],
     justAskEntries: [],
     status: "unmastered",
@@ -27,7 +26,7 @@ describe("map tree layout", () => {
       node("wide-b", "wide"),
       node("wide-c", "wide")
     ];
-    const positions = layoutTopicMapTree(nodes, "topic", new Set(nodes.map((n) => n.id)));
+    const positions = layoutTopicMapTree(nodes, "root", new Set(nodes.map((n) => n.id)));
 
     expect(positions).not.toBeNull();
     const root = positions!.get("root")!;

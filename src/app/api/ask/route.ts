@@ -5,36 +5,111 @@ import {
   buildCreateChildMockProtocolString,
   CreateChildProtocolStreamParser
 } from "@/domain/create-child-stream-protocol";
-import { streamDeepseekCreateChildProtocol, streamDeepseekJustAsk } from "@/domain/deepseek-ask";
+import {
+  streamLlmCreateChildProtocol,
+  streamLlmJustAsk,
+  type LlmRouting
+} from "@/domain/deepseek-ask";
 import { mockCreateNode, mockJustAsk } from "@/domain/mock-ai";
-import { DEFAULT_DEEPSEEK_MODEL, type DeepseekModelId } from "@/lib/deepseek-settings";
-import type { AskMode, LearningNode, Topic } from "@/domain/types";
+import {
+  searchBrave,
+  searchExa,
+  searchTavily,
+  toClientWebSources,
+  type WebSearchResult
+} from "@/domain/web-search";
+import { defaultModelForProvider, type LlmProviderId } from "@/lib/deepseek-settings";
+import type { AskMode, LearningNode } from "@/domain/types";
 
 type AskRequest = {
-  topic: Topic;
+  /** Root of the current map; `title` is the root node title (for prompts). */
+  mapRoot: { title: string };
   nodes: LearningNode[];
   activeNodeId: string;
   question: string;
   mode: AskMode;
-  relatedConcepts: Array<{ name: string; description: string | null }>;
+  /** When true, searches the web and adds results to the model context. */
+  webSearch?: boolean;
+  /** Default `exa` when omitted. */
+  webSearchProvider?: "tavily" | "brave" | "exa";
+  /** When empty, falls back to TAVILY_API_KEY. */
+  tavily?: { apiKey?: string };
+  /** When empty, falls back to BRAVE_API_KEY. */
+  brave?: { apiKey?: string };
+  /** When empty, falls back to EXA_API_KEY. */
+  exa?: { apiKey?: string };
   /** 必须传 `true`；本接口仅支持流式响应。 */
   stream?: boolean;
-  /** When empty, falls back to mock answers or DEEPSEEK_API_KEY. */
-  deepseek?: { apiKey?: string; model?: DeepseekModelId };
+  /** Preferred: provider + model + optional API key (server falls back to env per provider). */
+  llm?: { provider?: LlmProviderId; apiKey?: string; model?: string };
+  /** @deprecated Use `llm` with provider `deepseek`. */
+  deepseek?: { apiKey?: string; model?: string };
 };
 
-function resolveDeepseek(
-  body: AskRequest
-): { apiKey: string; model: DeepseekModelId } | null {
-  const fromBody = body.deepseek?.apiKey?.trim() ?? "";
-  const fromEnv = process.env.DEEPSEEK_API_KEY?.trim() ?? "";
-  const apiKey = fromBody || fromEnv;
-  if (!apiKey) return null;
-  const model = body.deepseek?.model ?? (process.env.DEEPSEEK_MODEL as DeepseekModelId | undefined) ?? DEFAULT_DEEPSEEK_MODEL;
-  if (model !== "deepseek-v4-pro" && model !== "deepseek-v4-flash") {
-    return { apiKey, model: DEFAULT_DEEPSEEK_MODEL };
+function envKeyForProvider(p: LlmProviderId): string {
+  switch (p) {
+    case "openai":
+      return process.env.OPENAI_API_KEY?.trim() ?? "";
+    case "gemini":
+      return (
+        process.env.GEMINI_API_KEY?.trim() ||
+        process.env.GOOGLE_API_KEY?.trim() ||
+        ""
+      );
+    case "claude":
+      return process.env.ANTHROPIC_API_KEY?.trim() ?? "";
+    case "deepseek":
+      return process.env.DEEPSEEK_API_KEY?.trim() ?? "";
+    case "kimi":
+      return (
+        process.env.MOONSHOT_API_KEY?.trim() ||
+        process.env.KIMI_API_KEY?.trim() ||
+        ""
+      );
+    case "glm":
+      return process.env.ZHIPU_API_KEY?.trim() || process.env.GLM_API_KEY?.trim() || "";
+    case "qwen":
+      return (
+        process.env.DASHSCOPE_API_KEY?.trim() ||
+        process.env.QWEN_API_KEY?.trim() ||
+        ""
+      );
+    case "minimax":
+      return process.env.MINIMAX_API_KEY?.trim() ?? "";
+    default:
+      return "";
   }
-  return { apiKey, model };
+}
+
+function resolveLlm(body: AskRequest): LlmRouting | null {
+  if (body.llm?.provider) {
+    const provider = body.llm.provider;
+    const model =
+      body.llm.model?.trim() || defaultModelForProvider(provider);
+    const fromBody = body.llm.apiKey?.trim() ?? "";
+    const fromEnv = envKeyForProvider(provider);
+    const apiKey = fromBody || fromEnv;
+    if (!apiKey) return null;
+    return { provider, apiKey, model };
+  }
+
+  if (body.deepseek) {
+    const fromBody = body.deepseek.apiKey?.trim() ?? "";
+    const fromEnv = envKeyForProvider("deepseek");
+    const apiKey = fromBody || fromEnv;
+    if (!apiKey) return null;
+    const model =
+      body.deepseek.model?.trim() ||
+      process.env.DEEPSEEK_MODEL?.trim() ||
+      defaultModelForProvider("deepseek");
+    return { provider: "deepseek", apiKey, model };
+  }
+
+  const apiKey = envKeyForProvider("deepseek");
+  if (!apiKey) return null;
+  const model =
+    process.env.DEEPSEEK_MODEL?.trim() || defaultModelForProvider("deepseek");
+  return { provider: "deepseek", apiKey, model };
 }
 
 export async function POST(request: Request) {
@@ -50,22 +125,81 @@ export async function POST(request: Request) {
     );
   }
 
-  const context = buildAskContext({ ...body, question });
-  const ds = resolveDeepseek(body);
+  let webSearchResults: WebSearchResult[] = [];
+  if (body.webSearch === true) {
+    const provider: "tavily" | "brave" | "exa" =
+      body.webSearchProvider === "brave"
+        ? "brave"
+        : body.webSearchProvider === "tavily"
+          ? "tavily"
+          : "exa";
+    try {
+      if (provider === "brave") {
+        const braveApiKey = body.brave?.apiKey?.trim() || process.env.BRAVE_API_KEY?.trim() || "";
+        if (!braveApiKey) {
+          return NextResponse.json(
+            { error: "BRAVE_API_KEY is required when web search uses Brave." },
+            { status: 400 }
+          );
+        }
+        webSearchResults = await searchBrave({ query: question, apiKey: braveApiKey });
+      } else if (provider === "exa") {
+        const exaApiKey = body.exa?.apiKey?.trim() || process.env.EXA_API_KEY?.trim() || "";
+        if (!exaApiKey) {
+          return NextResponse.json(
+            { error: "EXA_API_KEY is required when web search uses Exa." },
+            { status: 400 }
+          );
+        }
+        webSearchResults = await searchExa({ query: question, apiKey: exaApiKey });
+      } else {
+        const tavilyApiKey = body.tavily?.apiKey?.trim() || process.env.TAVILY_API_KEY?.trim() || "";
+        if (!tavilyApiKey) {
+          return NextResponse.json(
+            { error: "TAVILY_API_KEY is required when web search uses Tavily." },
+            { status: 400 }
+          );
+        }
+        webSearchResults = await searchTavily({ query: question, apiKey: tavilyApiKey });
+      }
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Web search failed";
+      return NextResponse.json({ error: message }, { status: 502 });
+    }
+  }
+
+  const context = buildAskContext({
+    mapRoot: body.mapRoot,
+    nodes: body.nodes,
+    activeNodeId: body.activeNodeId,
+    question,
+    mode: body.mode,
+    webSearchResults
+  });
+  const llm = resolveLlm(body);
   const enc = new TextEncoder();
   const writeLine = (obj: object, controller: ReadableStreamDefaultController<Uint8Array>) => {
     controller.enqueue(enc.encode(`${JSON.stringify(obj)}\n`));
+  };
+
+  const writeWebSourcePrologue = (controller: ReadableStreamDefaultController<Uint8Array>) => {
+    if (body.webSearch === true) {
+      writeLine(
+        { webSearchRan: true, webSources: toClientWebSources(webSearchResults) },
+        controller
+      );
+    }
   };
 
   if (body.mode === "just_ask") {
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
         try {
-          if (ds) {
-            const full = await streamDeepseekJustAsk(
+          writeWebSourcePrologue(controller);
+          if (llm) {
+            const full = await streamLlmJustAsk(
               context,
-              ds.model,
-              ds.apiKey,
+              llm,
               (delta) => writeLine({ t: delta }, controller)
             );
             writeLine({ done: true, full }, controller);
@@ -98,11 +232,11 @@ export async function POST(request: Request) {
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
         try {
-          if (ds) {
-            const output = await streamDeepseekCreateChildProtocol(
+          writeWebSourcePrologue(controller);
+          if (llm) {
+            const output = await streamLlmCreateChildProtocol(
               context,
-              ds.model,
-              ds.apiKey,
+              llm,
               (delta) => {
                 if (delta) writeLine({ t: delta }, controller);
               },

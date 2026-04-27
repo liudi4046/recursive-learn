@@ -1,13 +1,41 @@
 import { describe, expect, it } from "vitest";
-import { addChildNodeFromJustAsk, createInitialState, handleAskResult, setNodeMastery } from "./app-state";
+import {
+  addChildNodeFromJustAsk,
+  createInitialState,
+  createRootNode,
+  deleteNodeAndSubtree,
+  handleAskResult,
+  setNodeFirstBlockQuestion,
+  setNodeMastery
+} from "./app-state";
 
 describe("app state", () => {
-  it("creates a topic, root node, and empty concept list", () => {
+  it("creates a root node", () => {
     const state = createInitialState("Transformer");
-    expect(state.topics).toHaveLength(1);
+    const r = state.nodes[0]!;
     expect(state.nodes).toHaveLength(1);
-    expect(state.activeNodeId).toBe(state.nodes[0].id);
-    expect(state.concepts).toEqual([]);
+    expect(r.mapRootId).toBe(r.id);
+    expect(state.activeMapRootId).toBe(r.id);
+    expect(state.activeNodeId).toBe(r.id);
+  });
+
+  it("creates an additional root node without deleting existing roots", () => {
+    const state = createInitialState("Transformer");
+    const firstRootId = state.activeNodeId;
+
+    const next = createRootNode(state, "Diffusion Models");
+
+    expect(next.nodes).toHaveLength(2);
+    expect(next.nodes[0].id).toBe(firstRootId);
+    const second = next.nodes[1]!;
+    expect(second.title).toBe("Diffusion Models");
+    expect(second).toMatchObject({
+      mapRootId: second.id,
+      parentNodeId: null,
+      title: "Diffusion Models"
+    });
+    expect(next.activeMapRootId).toBe(second.id);
+    expect(next.activeNodeId).toBe(second.id);
   });
 
   it("adds a child node for create child mode", () => {
@@ -17,14 +45,11 @@ describe("app state", () => {
       question: "Q/K/V 是什么？",
       output: {
         title: "Q/K/V",
-        answer: "Answer",
-        conceptCandidate: "Q/K/V",
-        relatedConceptCandidates: []
+        answer: "Answer"
       }
     });
     expect(next.nodes).toHaveLength(2);
     expect(next.activeNodeId).toBe(next.nodes[1].id);
-    expect(next.concepts.some((concept) => concept.name === "Q/K/V")).toBe(true);
   });
 
   it("adds a child from just-ask Q&A without a second API call", () => {
@@ -70,6 +95,15 @@ describe("app state", () => {
     });
   });
 
+  it("sets first block question when empty and does not overwrite", () => {
+    const state = createInitialState("Topic");
+    const rootId = state.nodes[0].id;
+    const withQ = setNodeFirstBlockQuestion(state, rootId, "User question?");
+    expect(withQ.nodes[0].contentBlocks[0]?.question).toBe("User question?");
+    const again = setNodeFirstBlockQuestion(withQ, rootId, "Other");
+    expect(again.nodes[0].contentBlocks[0]?.question).toBe("User question?");
+  });
+
   it("updates mastery for a node by id", () => {
     const state = createInitialState("T");
     const id = state.nodes[0].id;
@@ -77,25 +111,42 @@ describe("app state", () => {
     expect(next.nodes[0].status).toBe("mastered");
   });
 
-  it("adds concept relations for related candidates when creating a child", () => {
-    const state = createInitialState("Transformer");
-    const next = handleAskResult(state, {
+  it("deletes a child subtree and focuses the parent", () => {
+    const state = handleAskResult(createInitialState("T"), {
       mode: "create_child_node",
-      question: "Q/K/V?",
+      question: "Child?",
       output: {
-        title: "Q/K/V",
-        answer: "Answer",
-        conceptCandidate: "Q/K/V",
-        relatedConceptCandidates: [{ name: "Self-attention", relation: "part_of" }]
+        title: "Child",
+        answer: "A"
       }
     });
-    const qk = next.concepts.find((c) => c.name === "Q/K/V");
-    const sa = next.concepts.find((c) => c.name === "Self-attention");
-    expect(qk).toBeDefined();
-    expect(sa).toBeDefined();
-    expect(next.conceptRelations).toHaveLength(1);
-    expect(next.conceptRelations[0].sourceConceptId).toBe(qk!.id);
-    expect(next.conceptRelations[0].targetConceptId).toBe(sa!.id);
-    expect(next.conceptRelations[0].label).toBe("part_of");
+    const rootId = state.nodes[0].id;
+    const childId = state.nodes[1].id;
+    const withActive = { ...state, activeNodeId: childId };
+    const next = deleteNodeAndSubtree(withActive, childId);
+    expect(next).not.toBeNull();
+    expect(next!.nodes).toHaveLength(1);
+    expect(next!.nodes[0].id).toBe(rootId);
+    expect(next!.activeNodeId).toBe(rootId);
+  });
+
+  it("deleting one root leaves the other map and focuses its root", () => {
+    const a = createInitialState("A");
+    const two = createRootNode(a, "B");
+    const rootA = two.nodes.find((n) => n.title === "A" && n.parentNodeId === null)!;
+    const rootB = two.nodes.find((n) => n.title === "B" && n.parentNodeId === null)!;
+    const focused = { ...two, activeMapRootId: rootA.id, activeNodeId: rootA.id };
+    const next = deleteNodeAndSubtree(focused, rootA.id);
+    expect(next).not.toBeNull();
+    expect(next!.nodes).toHaveLength(1);
+    expect(next!.nodes[0].title).toBe("B");
+    expect(next!.activeNodeId).toBe(rootB.id);
+    expect(next!.activeMapRootId).toBe(rootB.id);
+  });
+
+  it("deleting the last root clears the session", () => {
+    const state = createInitialState("Only");
+    const rootId = state.nodes[0].id;
+    expect(deleteNodeAndSubtree(state, rootId)).toBeNull();
   });
 });
