@@ -66,7 +66,7 @@ describe("app state", () => {
     });
   });
 
-  it("removes the promoted 随问 entry on the parent", () => {
+  it("removes the promoted 随便问问 entry on the parent", () => {
     const state0 = createInitialState("Transformer");
     const withAsk = handleAskResult(state0, {
       mode: "just_ask",

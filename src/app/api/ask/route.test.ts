@@ -23,9 +23,34 @@ describe("POST /api/ask", () => {
       })
     );
     expect(response.status).toBe(400);
+    const body = (await response.json()) as { code?: string };
+    expect(body.code).toBe("stream_required");
   });
 
-  it("streams create child with mock when stream: true", async () => {
+  it("rejects web search with Exa when no Exa API key is available", async () => {
+    vi.stubEnv("DEEPSEEK_API_KEY", "ds-test-key");
+    const session = createTopicWithRoot("Transformer", "Root");
+    const response = await POST(
+      new Request("http://localhost/api/ask", {
+        method: "POST",
+        body: JSON.stringify({
+          mapRoot: { title: session.nodes[0].title },
+          nodes: session.nodes,
+          activeNodeId: session.activeNodeId,
+          question: "Q?",
+          mode: "just_ask",
+          stream: true,
+          webSearch: true,
+          webSearchProvider: "exa"
+        })
+      })
+    );
+    expect(response.status).toBe(400);
+    const body = (await response.json()) as { code?: string };
+    expect(body.code).toBe("exa_api_key_required");
+  });
+
+  it("rejects create_child when no LLM API key is available", async () => {
     const session = createTopicWithRoot("Transformer", "Root");
     const response = await POST(
       new Request("http://localhost/api/ask", {
@@ -36,19 +61,16 @@ describe("POST /api/ask", () => {
           activeNodeId: session.activeNodeId,
           question: "Q/K/V 是什么？",
           mode: "create_child_node",
-          stream: true,
+          stream: true
         })
       })
     );
-    expect(response.status).toBe(200);
-    const text = await response.text();
-    const lines = text.trim().split("\n").filter(Boolean);
-    const last = JSON.parse(lines[lines.length - 1]!) as { done?: boolean; output?: { title: string } };
-    expect(last.done).toBe(true);
-    expect(last.output?.title).toBe("Q/K/V");
+    expect(response.status).toBe(400);
+    const body = (await response.json()) as { code?: string };
+    expect(body.code).toBe("llm_api_key_required");
   });
 
-  it("streams just ask with mock when stream: true", async () => {
+  it("rejects just_ask when no LLM API key is available", async () => {
     const session = createTopicWithRoot("Transformer", "Root");
     const response = await POST(
       new Request("http://localhost/api/ask", {
@@ -59,19 +81,23 @@ describe("POST /api/ask", () => {
           activeNodeId: session.activeNodeId,
           question: "Explain with an example",
           mode: "just_ask",
-          stream: true,
+          stream: true
         })
       })
     );
-    const text = await response.text();
-    const lines = text.trim().split("\n").filter(Boolean);
-    const last = JSON.parse(lines[lines.length - 1]!) as { done?: boolean; full?: string };
-    expect(response.status).toBe(200);
-    expect(last.done).toBe(true);
-    expect(last.full).toContain("example");
+    expect(response.status).toBe(400);
+    const body = (await response.json()) as { code?: string };
+    expect(body.code).toBe("llm_api_key_required");
   });
 
   it("streams ndjson for just ask with stream: true", async () => {
+    vi.stubEnv("DEEPSEEK_API_KEY", "ds-test-key");
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+      return new Response(
+        'data: {"choices":[{"delta":{"content":"Hi"}}]}\n\ndata: [DONE]\n\n',
+        { status: 200, headers: { "Content-Type": "text/event-stream" } }
+      );
+    });
     const session = createTopicWithRoot("Transformer", "Root");
     const response = await POST(
       new Request("http://localhost/api/ask", {
@@ -95,9 +121,26 @@ describe("POST /api/ask", () => {
     expect(last.done).toBe(true);
     expect(typeof last.full).toBe("string");
     expect(last.full!.length).toBeGreaterThan(0);
+    expect(fetchMock).toHaveBeenCalled();
   });
 
   it("streams ndjson for create child with stream: true", async () => {
+    vi.stubEnv("DEEPSEEK_API_KEY", "ds-test-key");
+    const protocol =
+      '---ML-TITLE---\nT\n---ML-BODY---\nBody.\n---ML-META---\n{"conceptCandidate":null,"relatedConceptCandidates":[]}';
+    const sseBody =
+      [...protocol]
+        .map(
+          (ch) =>
+            `data: ${JSON.stringify({ choices: [{ delta: { content: ch } }] })}\n\n`
+        )
+        .join("") + "data: [DONE]\n\n";
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+      return new Response(sseBody, {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" }
+      });
+    });
     const session = createTopicWithRoot("Transformer", "Root");
     const response = await POST(
       new Request("http://localhost/api/ask", {
@@ -121,6 +164,7 @@ describe("POST /api/ask", () => {
     expect(last.done).toBe(true);
     expect(last.output?.title).toBeDefined();
     expect(last.output?.answer?.length).toBeGreaterThan(0);
+    expect(fetchMock).toHaveBeenCalled();
   });
 
   it("adds Tavily web search results to the DeepSeek prompt when requested", async () => {

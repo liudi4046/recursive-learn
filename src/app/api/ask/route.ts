@@ -1,16 +1,6 @@
 import { NextResponse } from "next/server";
-import { createNodeOutputSchema } from "@/domain/ai-schema";
 import { buildAskContext } from "@/domain/context";
-import {
-  buildCreateChildMockProtocolString,
-  CreateChildProtocolStreamParser
-} from "@/domain/create-child-stream-protocol";
-import {
-  streamLlmCreateChildProtocol,
-  streamLlmJustAsk,
-  type LlmRouting
-} from "@/domain/deepseek-ask";
-import { mockCreateNode, mockJustAsk } from "@/domain/mock-ai";
+import { streamLlmCreateChildProtocol, streamLlmJustAsk, type LlmRouting } from "@/domain/deepseek-ask";
 import {
   searchBrave,
   searchExa,
@@ -116,11 +106,17 @@ export async function POST(request: Request) {
   const body = (await request.json()) as AskRequest;
   const question = body.question.trim();
   if (!question) {
-    return NextResponse.json({ error: "Question is required" }, { status: 400 });
+    return NextResponse.json(
+      { code: "question_required", error: "Question is required" },
+      { status: 400 }
+    );
   }
   if (body.stream !== true) {
     return NextResponse.json(
-      { error: "本接口只支持流式，请在请求体中设置 stream: true" },
+      {
+        code: "stream_required",
+        error: "This endpoint only supports streaming. Set stream: true in the request body."
+      },
       { status: 400 }
     );
   }
@@ -138,7 +134,10 @@ export async function POST(request: Request) {
         const braveApiKey = body.brave?.apiKey?.trim() || process.env.BRAVE_API_KEY?.trim() || "";
         if (!braveApiKey) {
           return NextResponse.json(
-            { error: "BRAVE_API_KEY is required when web search uses Brave." },
+            {
+              code: "brave_api_key_required",
+              error: "BRAVE_API_KEY is required when web search uses Brave."
+            },
             { status: 400 }
           );
         }
@@ -147,7 +146,10 @@ export async function POST(request: Request) {
         const exaApiKey = body.exa?.apiKey?.trim() || process.env.EXA_API_KEY?.trim() || "";
         if (!exaApiKey) {
           return NextResponse.json(
-            { error: "EXA_API_KEY is required when web search uses Exa." },
+            {
+              code: "exa_api_key_required",
+              error: "EXA_API_KEY is required when web search uses Exa."
+            },
             { status: 400 }
           );
         }
@@ -156,7 +158,10 @@ export async function POST(request: Request) {
         const tavilyApiKey = body.tavily?.apiKey?.trim() || process.env.TAVILY_API_KEY?.trim() || "";
         if (!tavilyApiKey) {
           return NextResponse.json(
-            { error: "TAVILY_API_KEY is required when web search uses Tavily." },
+            {
+              code: "tavily_api_key_required",
+              error: "TAVILY_API_KEY is required when web search uses Tavily."
+            },
             { status: 400 }
           );
         }
@@ -164,7 +169,10 @@ export async function POST(request: Request) {
       }
     } catch (e) {
       const message = e instanceof Error ? e.message : "Web search failed";
-      return NextResponse.json({ error: message }, { status: 502 });
+      return NextResponse.json(
+        { code: "web_search_failed", error: message },
+        { status: 502 }
+      );
     }
   }
 
@@ -177,6 +185,16 @@ export async function POST(request: Request) {
     webSearchResults
   });
   const llm = resolveLlm(body);
+  if (!llm) {
+    return NextResponse.json(
+      {
+        code: "llm_api_key_required",
+        error:
+          "LLM API key is required. Add it in Settings for your chosen provider, or set the matching environment variable on the server."
+      },
+      { status: 400 }
+    );
+  }
   const enc = new TextEncoder();
   const writeLine = (obj: object, controller: ReadableStreamDefaultController<Uint8Array>) => {
     controller.enqueue(enc.encode(`${JSON.stringify(obj)}\n`));
@@ -196,25 +214,12 @@ export async function POST(request: Request) {
       async start(controller) {
         try {
           writeWebSourcePrologue(controller);
-          if (llm) {
-            const full = await streamLlmJustAsk(
-              context,
-              llm,
-              (delta) => writeLine({ t: delta }, controller)
-            );
-            writeLine({ done: true, full }, controller);
-          } else {
-            const text = await mockJustAsk(context);
-            const step = 6;
-            for (let i = 0; i < text.length; i += step) {
-              if (i > 0) {
-                await new Promise((r) => setTimeout(r, 8));
-              }
-              const t = text.slice(i, i + step);
-              writeLine({ t }, controller);
-            }
-            writeLine({ done: true, full: text }, controller);
-          }
+          const full = await streamLlmJustAsk(
+            context,
+            llm,
+            (delta) => writeLine({ t: delta }, controller)
+          );
+          writeLine({ done: true, full }, controller);
           controller.close();
         } catch (e) {
           const message = e instanceof Error ? e.message : "Request failed";
@@ -233,30 +238,15 @@ export async function POST(request: Request) {
       async start(controller) {
         try {
           writeWebSourcePrologue(controller);
-          if (llm) {
-            const output = await streamLlmCreateChildProtocol(
-              context,
-              llm,
-              (delta) => {
-                if (delta) writeLine({ t: delta }, controller);
-              },
-              (title) => writeLine({ title }, controller)
-            );
-            writeLine({ done: true, output }, controller);
-          } else {
-            const out = createNodeOutputSchema.parse(await mockCreateNode(context));
-            const text = buildCreateChildMockProtocolString(out);
-            const p = new CreateChildProtocolStreamParser((title) => writeLine({ title }, controller));
-            for (let i = 0; i < text.length; i += 1) {
-              if (i > 0 && i % 6 === 0) {
-                await new Promise((r) => setTimeout(r, 8));
-              }
-              const d = p.append(text[i]!);
-              if (d) writeLine({ t: d }, controller);
-            }
-            const parsed = p.finish();
-            writeLine({ done: true, output: parsed }, controller);
-          }
+          const output = await streamLlmCreateChildProtocol(
+            context,
+            llm,
+            (delta) => {
+              if (delta) writeLine({ t: delta }, controller);
+            },
+            (title) => writeLine({ title }, controller)
+          );
+          writeLine({ done: true, output }, controller);
           controller.close();
         } catch (e) {
           const message = e instanceof Error ? e.message : "Request failed";
@@ -270,5 +260,8 @@ export async function POST(request: Request) {
     });
   }
 
-  return NextResponse.json({ error: "Invalid mode" }, { status: 400 });
+  return NextResponse.json(
+    { code: "invalid_mode", error: "Invalid request mode" },
+    { status: 400 }
+  );
 }

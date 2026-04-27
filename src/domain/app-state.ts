@@ -32,12 +32,21 @@ export type CreateChildStreamUi =
     }
   | null;
 
+/** Transient notice (e.g. missing API key); shown above the ask form, not inside the answer body. */
+export type AskSetupBanner =
+  | {
+      nodeId: string;
+      message: string;
+    }
+  | null;
+
 export type AppState = {
   nodes: LearningNode[];
   /** Root node id of the map in focus (same as that root’s `id`). */
   activeMapRootId: string;
   activeNodeId: string;
   createChildStreamUi: CreateChildStreamUi;
+  askSetupBanner: AskSetupBanner;
 };
 
 export function setCreateChildStreamUi(state: AppState, ui: CreateChildStreamUi): AppState {
@@ -221,7 +230,8 @@ export function createInitialState(rootTitle: string): AppState {
     nodes: session.nodes,
     activeMapRootId: rootId,
     activeNodeId: session.activeNodeId,
-    createChildStreamUi: null
+    createChildStreamUi: null,
+    askSetupBanner: null
   };
 }
 
@@ -237,7 +247,8 @@ export function createRootNode(state: AppState, title: string): AppState {
     nodes: [...state.nodes, ...session.nodes],
     activeMapRootId: rootId,
     activeNodeId: session.activeNodeId,
-    createChildStreamUi: null
+    createChildStreamUi: null,
+    askSetupBanner: null
   };
 }
 
@@ -302,12 +313,18 @@ export function deleteNodeAndSubtree(state: AppState, nodeId: string): AppState 
   const createChildStreamUi =
     ui && idsToRemove.has(ui.childId) ? null : ui;
 
+  let askSetupBanner = state.askSetupBanner;
+  if (askSetupBanner && idsToRemove.has(askSetupBanner.nodeId)) {
+    askSetupBanner = null;
+  }
+
   return {
     ...state,
     nodes: nextNodes,
     activeMapRootId,
     activeNodeId,
-    createChildStreamUi
+    createChildStreamUi,
+    askSetupBanner
   };
 }
 
@@ -355,7 +372,7 @@ export function handleAskResult(
 
 /**
  * New child with the just-ask Q&A as body (no API). Title is truncated from the question.
- * Removes the matching 随问 record on the parent so it cannot be promoted twice.
+ * Removes the matching 随便问问 record on the parent so it cannot be promoted twice.
  */
 export function addChildNodeFromJustAsk(
   state: AppState,

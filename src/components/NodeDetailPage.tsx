@@ -26,6 +26,7 @@ import {
   clearCreateChildStream,
   publishCreateChildStreamText
 } from "@/lib/create-child-stream-buffer";
+import { messageForAskApiError } from "@/lib/ask-api-error-message";
 import { buildAskLlmFields, loadDeepseekSettings, webSearchApiFields } from "@/lib/deepseek-settings";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { CreateChildStreamAnswerP } from "./CreateChildStreamAnswerP";
@@ -53,7 +54,6 @@ type JustAskPanel = {
   question: string;
   text: string;
   status: "streaming" | "done" | "error";
-  errorMessage?: string;
   webSearchRan?: boolean;
   webSources?: WebSourceSummary[];
 };
@@ -138,7 +138,6 @@ export function NodeDetailPage({
 
   const [mode, setMode] = useState<AskMode>("create_child_node");
   const [question, setQuestion] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [webSearch, setWebSearch] = useState(false);
   const [justAskPanel, setJustAskPanel] = useState<JustAskPanel | null>(null);
@@ -174,7 +173,6 @@ export function NodeDetailPage({
         question: justAskPanel.question,
         answer: justAskPanel.text,
         status: justAskPanel.status,
-        errorMessage: justAskPanel.errorMessage,
         webSearchRan: justAskPanel.webSearchRan,
         webSources: justAskPanel.webSources
       }
@@ -183,7 +181,6 @@ export function NodeDetailPage({
           question: selectedEntry.question,
           answer: selectedEntry.answer,
           status: "done" as const,
-          errorMessage: undefined,
           webSearchRan: selectedEntry.webSearchUsed,
           webSources: selectedEntry.webSources
         }
@@ -191,8 +188,10 @@ export function NodeDetailPage({
 
   async function runJustAskStream(q: string) {
     if (!mapRoot) return;
+    const clearedBanner = { ...stateRef.current, askSetupBanner: null };
+    stateRef.current = clearedBanner;
+    onStateChange(clearedBanner);
     setJustAskPanel({ question: q, text: "", status: "streaming" });
-    setError(null);
     setSubmitting(true);
     const settings = await loadDeepseekSettings();
     const thr = createStreamThrottler((text) => {
@@ -217,13 +216,16 @@ export function NodeDetailPage({
         })
       });
       if (!res.ok) {
-        const errBody = (await res.json().catch(() => ({}))) as { error?: string };
-        const msg = "error" in errBody && errBody.error ? errBody.error : t("nodeRequestFailed");
+        const errBody = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+        const msg = messageForAskApiError(errBody, t);
+        const nid = stateRef.current.activeNodeId;
+        const withBanner = { ...stateRef.current, askSetupBanner: { nodeId: nid, message: msg } };
+        stateRef.current = withBanner;
+        onStateChange(withBanner);
         setJustAskPanel({
           question: q,
           text: thr.getText(),
-          status: "error",
-          errorMessage: msg
+          status: "error"
         });
         thr.cancel();
         return;
@@ -243,20 +245,30 @@ export function NodeDetailPage({
       );
       thr.flushNow();
       if ("err" in out) {
+        const nid = stateRef.current.activeNodeId;
+        const withBanner = {
+          ...stateRef.current,
+          askSetupBanner: { nodeId: nid, message: out.err }
+        };
+        stateRef.current = withBanner;
+        onStateChange(withBanner);
         setJustAskPanel({
           question: q,
           text: thr.getText(),
-          status: "error",
-          errorMessage: out.err
+          status: "error"
         });
         return;
       }
       if (out.kind !== "just_ask") {
+        const nid = stateRef.current.activeNodeId;
+        const msg = t("nodeUnexpectedStream");
+        const withBanner = { ...stateRef.current, askSetupBanner: { nodeId: nid, message: msg } };
+        stateRef.current = withBanner;
+        onStateChange(withBanner);
         setJustAskPanel({
           question: q,
           text: thr.getText(),
-          status: "error",
-          errorMessage: t("nodeUnexpectedStream")
+          status: "error"
         });
         return;
       }
@@ -267,15 +279,18 @@ export function NodeDetailPage({
         webSearchRan: out.webSearchRan,
         webSources: out.webSources
       });
-      onStateChange(
-        handleAskResult(stateRef.current, {
+      const afterAsk = handleAskResult(
+        { ...stateRef.current, askSetupBanner: null },
+        {
           mode: "just_ask",
           question: q,
           answer: out.full,
           webSearchUsed: out.webSearchRan,
           webSources: out.webSources
-        })
+        }
       );
+      stateRef.current = afterAsk;
+      onStateChange(afterAsk);
     } finally {
       setSubmitting(false);
     }
@@ -283,7 +298,9 @@ export function NodeDetailPage({
 
   async function runCreateChildStream(q: string) {
     if (!mapRoot) return;
-    setError(null);
+    const clearedBanner = { ...stateRef.current, askSetupBanner: null };
+    stateRef.current = clearedBanner;
+    onStateChange(clearedBanner);
     setSubmitting(true);
     const parentId = stateRef.current.activeNodeId;
     const settings = await loadDeepseekSettings();
@@ -321,15 +338,15 @@ export function NodeDetailPage({
       });
 
       if (!res.ok) {
-        const errBody = (await res.json().catch(() => ({}))) as { error?: string };
-        const msg = "error" in errBody && errBody.error ? errBody.error : t("nodeRequestFailed");
+        const errBody = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+        const msg = messageForAskApiError(errBody, t);
         if (childId) {
           const rolled = removePlaceholderChild(stateRef.current, childId, parentId);
-          stateRef.current = rolled;
-          onStateChange(rolled);
+          const withBanner = { ...rolled, askSetupBanner: { nodeId: parentId, message: msg } };
+          stateRef.current = withBanner;
+          onStateChange(withBanner);
         }
         router.push(`/nodes/${parentId}`);
-        setError(msg);
         return;
       }
 
@@ -382,22 +399,25 @@ export function NodeDetailPage({
 
       if ("err" in out) {
         const rolled = removePlaceholderChild(stateRef.current, childId, parentId);
-        stateRef.current = rolled;
-        onStateChange(rolled);
+        const withBanner = { ...rolled, askSetupBanner: { nodeId: parentId, message: out.err } };
+        stateRef.current = withBanner;
+        onStateChange(withBanner);
         router.push(`/nodes/${parentId}`);
-        setError(out.err);
         return;
       }
       if (out.kind !== "create_child") {
         const rolled = removePlaceholderChild(stateRef.current, childId, parentId);
-        stateRef.current = rolled;
-        onStateChange(rolled);
+        const withBanner = {
+          ...rolled,
+          askSetupBanner: { nodeId: parentId, message: t("nodeUnexpectedResponse") }
+        };
+        stateRef.current = withBanner;
+        onStateChange(withBanner);
         router.push(`/nodes/${parentId}`);
-        setError(t("nodeUnexpectedResponse"));
         return;
       }
       const final = finalizeCreateChild(
-        stateRef.current,
+        { ...stateRef.current, askSetupBanner: null },
         childId,
         q,
         out.output,
@@ -422,7 +442,9 @@ export function NodeDetailPage({
     e.preventDefault();
     const q = question.trim();
     if (!q || !mapRoot) return;
-    setError(null);
+    const clearedBanner = { ...stateRef.current, askSetupBanner: null };
+    stateRef.current = clearedBanner;
+    onStateChange(clearedBanner);
 
     if (mode === "just_ask") {
       setQuestion("");
@@ -708,11 +730,7 @@ export function NodeDetailPage({
                 </div>
               ) : null}
               <QaAnswerBox withHeader className="mt-3">
-                {displayedJustAsk.status === "error" ? (
-                  <p className="m-0 text-[0.95rem] text-ml-error">
-                    {displayedJustAsk.errorMessage ?? t("nodeErrorGeneric")}
-                  </p>
-                ) : (
+                {displayedJustAsk.status === "error" && !displayedJustAsk.answer.trim() ? null : (
                   <MarkdownAnswer
                     source={displayedJustAsk.answer}
                     showCaret={displayedJustAsk.status === "streaming"}
@@ -720,6 +738,15 @@ export function NodeDetailPage({
                 )}
               </QaAnswerBox>
             </section>
+          ) : null}
+
+          {state.askSetupBanner?.nodeId === node.id ? (
+            <div
+              role="alert"
+              className="mb-4 rounded-ml border border-ml-yellow/45 bg-ml-yellow-soft px-4 py-3 text-[0.9rem] leading-snug text-ml-ink"
+            >
+              {state.askSetupBanner.message}
+            </div>
           ) : null}
 
           <form onSubmit={onSubmit} className="m-0">
@@ -819,7 +846,6 @@ export function NodeDetailPage({
                 </button>
               </div>
             </div>
-            {error ? <p className="mt-2 text-[0.9rem] text-ml-error">{error}</p> : null}
           </form>
         </div>
 

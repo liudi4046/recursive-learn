@@ -11,7 +11,7 @@ type QaQuestionProps = {
 };
 
 /**
- * Visually distinct “question” block (Q badge + label) for learning content and 随问.
+ * Visually distinct “question” block (Q badge + label) for learning content and 随便问问.
  */
 export function QaQuestion({ children, variant = "lead", className = "" }: QaQuestionProps) {
   const { t } = useLocale();

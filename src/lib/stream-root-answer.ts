@@ -12,7 +12,9 @@ import {
   clearCreateChildStream,
   publishCreateChildStreamText
 } from "@/lib/create-child-stream-buffer";
+import { messageForAskApiError, type AskApiErrorBody } from "@/lib/ask-api-error-message";
 import { buildAskLlmFields, loadDeepseekSettings, webSearchApiFields } from "@/lib/deepseek-settings";
+import type { MessageKey } from "@/i18n/strings";
 
 function createStreamThrottler(
   onFlush: (text: string) => void,
@@ -69,9 +71,14 @@ export async function streamRootAnswer(
   rootId: string,
   question: string,
   useWebSearch: boolean,
-  setState: (next: AppState) => void
+  setState: (next: AppState) => void,
+  options: { t: (key: MessageKey) => string }
 ): Promise<void> {
   let current = initial;
+  if (initial.askSetupBanner != null) {
+    current = { ...initial, askSetupBanner: null };
+    setState(current);
+  }
   try {
     const mapRoot = current.nodes.find((n) => n.id === rootId);
     if (!mapRoot) return;
@@ -94,7 +101,13 @@ export async function streamRootAnswer(
       })
     });
 
-    if (!res.ok) return;
+    if (!res.ok) {
+      const errBody = (await res.json().catch(() => ({}))) as AskApiErrorBody;
+      const msg = messageForAskApiError(errBody, options.t);
+      current = { ...current, askSetupBanner: { nodeId: rootId, message: msg } };
+      setState(current);
+      return;
+    }
 
     let didStreamingUi = false;
     const markStreaming = () => {

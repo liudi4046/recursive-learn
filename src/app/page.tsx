@@ -9,11 +9,13 @@ import {
   setNodeFirstBlockQuestion
 } from "@/domain/app-state";
 import { HomePage } from "@/components/HomePage";
+import { useLocale } from "@/i18n/locale-context";
 import { streamRootAnswer } from "@/lib/stream-root-answer";
 import { useAppState } from "@/state/app-state-context";
 
 export default function Page() {
   const router = useRouter();
+  const { t } = useLocale();
   const { rehydrated, state, setState } = useAppState();
 
   if (!rehydrated) {
@@ -35,7 +37,7 @@ export default function Page() {
     });
     setState(withThinking);
     router.push(`/nodes/${rootId}`);
-    void streamRootAnswer(withThinking, rootId, trimmed, webSearch, setState);
+    void streamRootAnswer(withThinking, rootId, trimmed, webSearch, setState, { t });
   }
 
   return <HomePage continueNodeId={state?.activeNodeId} onStart={handleStart} />;

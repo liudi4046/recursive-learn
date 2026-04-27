@@ -39,7 +39,8 @@ function emptyState(): AppState {
     nodes: [],
     activeMapRootId: "",
     activeNodeId: "",
-    createChildStreamUi: null
+    createChildStreamUi: null,
+    askSetupBanner: null
   };
 }
 
@@ -49,11 +50,13 @@ describe("maps index page", () => {
     mocks.appState.setState.mockReset();
     mocks.appState.rehydrated = true;
     mocks.appState.state = null;
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response('{"done":true,"full":"Root answer"}\n', {
-        status: 200,
-        headers: { "Content-Type": "application/x-ndjson" }
-      })
+    vi.spyOn(globalThis, "fetch").mockImplementation(() =>
+      Promise.resolve(
+        new Response('{"done":true,"full":"Root answer"}\n', {
+          status: 200,
+          headers: { "Content-Type": "application/x-ndjson" }
+        })
+      )
     );
   });
 
@@ -134,8 +137,9 @@ describe("maps index page", () => {
 
     await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
     const f = vi.mocked(globalThis.fetch);
-    const args = f.mock.calls[0] as unknown as [string, RequestInit];
-    const body = JSON.parse(String(args[1].body)) as { webSearch?: boolean };
+    const askCall = f.mock.calls.find((c) => String(c[0]).includes("/api/ask"));
+    expect(askCall).toBeDefined();
+    const body = JSON.parse(String(askCall![1].body)) as { webSearch?: boolean };
     expect(body.webSearch).toBe(true);
   });
 });

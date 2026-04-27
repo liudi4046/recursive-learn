@@ -4,7 +4,14 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useLocale } from "@/i18n/locale-context";
 import { useAppState } from "@/state/app-state-context";
-import { IconChevronDown, IconLearningMap, IconSearch, IconSettings, LogoMark } from "./Icons";
+import {
+  IconChevronDown,
+  IconLanguage,
+  IconLearningMap,
+  IconSearch,
+  IconSettings,
+  LogoMark
+} from "./Icons";
 
 const navLink = (active: boolean) =>
   [
@@ -96,6 +103,7 @@ export function SiteHeader() {
               aria-haspopup="listbox"
               onClick={() => setLangOpen((o) => !o)}
             >
+              <IconLanguage className="h-[1em] w-[1em] shrink-0" aria-hidden />
               <span className="tabular-nums">{currentLangLabel}</span>
               <IconChevronDown
                 className={[

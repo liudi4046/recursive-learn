@@ -91,7 +91,7 @@ export default function MapsIndexPage() {
     setState(withThinking);
     setQuery("");
     router.push(`/nodes/${rootId}`);
-    void streamRootAnswer(withThinking, rootId, trimmed, webSearch, setState);
+    void streamRootAnswer(withThinking, rootId, trimmed, webSearch, setState, { t });
   }
 
   function confirmDeleteMap() {

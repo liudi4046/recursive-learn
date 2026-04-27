@@ -103,8 +103,3 @@ export class CreateChildProtocolStreamParser {
     return createNodeOutputSchema.parse({ title, answer });
   }
 }
-
-export function buildCreateChildMockProtocolString(out: CreateNodeOutput): string {
-  const meta = JSON.stringify({});
-  return `${MARK.title}${out.title}\n${MARK.body}${out.answer}\n${MARK.meta}${meta}`;
-}

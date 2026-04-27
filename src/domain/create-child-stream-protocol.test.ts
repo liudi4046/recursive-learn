@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  CreateChildProtocolStreamParser,
-  buildCreateChildMockProtocolString
-} from "./create-child-stream-protocol";
-import { mockCreateNode } from "./mock-ai";
-import { buildAskContext } from "./context";
-import { createTopicWithRoot } from "./learning-tree";
+import { CreateChildProtocolStreamParser } from "./create-child-stream-protocol";
+import type { CreateNodeOutput } from "./types";
 
 describe("CreateChildProtocolStreamParser", () => {
   it("invokes onTitle when the title line is complete, before any body token", () => {
@@ -69,18 +64,15 @@ describe("CreateChildProtocolStreamParser", () => {
   });
 });
 
-describe("buildCreateChildMockProtocolString", () => {
-  it("round-trips through the protocol parser", async () => {
-    const session = createTopicWithRoot("T", "root");
-    const context = buildAskContext({
-      mapRoot: { title: session.nodes[0].title },
-      nodes: session.nodes,
-      activeNodeId: session.activeNodeId,
-      question: "What is attention?",
-      mode: "create_child_node"
-    });
-    const out = await mockCreateNode(context);
-    const protocol = buildCreateChildMockProtocolString(out);
+describe("create-child protocol serialization", () => {
+  it("round-trips sample output through the protocol parser", () => {
+    const out: CreateNodeOutput = {
+      title: "Attention",
+      answer: "Attention compares tokens using learned projections."
+    };
+    const meta = JSON.stringify({});
+    const protocol =
+      `---ML-TITLE---\n${out.title}\n---ML-BODY---\n${out.answer}\n---ML-META---\n${meta}`;
     const p = new CreateChildProtocolStreamParser();
     for (const ch of protocol) p.append(ch);
     expect(p.finish()).toEqual(out);

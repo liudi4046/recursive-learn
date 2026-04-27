@@ -154,6 +154,18 @@ const en = {
   nodeUnexpectedResponse: "Unexpected response",
   nodeUnexpectedStream: "Unexpected stream",
   nodeRequestFailed: "Request failed",
+  askLlmKeyRequired:
+    "Add an LLM API key in Settings for your chosen provider (or set the matching key on the server), then try again.",
+  askWebSearchExaKeyRequired:
+    "EXA_API_KEY is required when using Exa for web search. Add it in Settings or set the EXA_API_KEY environment variable on the server.",
+  askWebSearchBraveKeyRequired:
+    "BRAVE_API_KEY is required when using Brave for web search. Add it in Settings or set the BRAVE_API_KEY environment variable on the server.",
+  askWebSearchTavilyKeyRequired:
+    "TAVILY_API_KEY is required when using Tavily for web search. Add it in Settings or set the TAVILY_API_KEY environment variable on the server.",
+  askQuestionRequired: "Question is required",
+  askStreamOnly: "This endpoint only supports streaming. Set stream: true in the request body.",
+  askInvalidMode: "Invalid request mode",
+  askWebSearchFailed: "Web search failed",
   nodeDeleteTitle: "Delete node?",
   nodeDeleteBody:
     "This node and all nodes beneath it will be removed. This action cannot be undone.",
@@ -224,7 +236,7 @@ const zh: { [K in keyof typeof en]: string } = {
 
   homeHeroTitle: "用递归法学习",
   homeSubtitle:
-    "从任意主题开始，对不懂处继续提问并标记是否掌握，一路追问到清楚；问题树会保存，方便随时返回。",
+    "从任意主题开始，对不懂处继续提问并标记是否掌握，一路追问直到理解；问题树会保存，方便随时返回。",
   homeContinue: "继续上次的节点",
   homeTopicAria: "学习主题",
   homeTopicPlaceholder: "想学什么？",
@@ -316,7 +328,7 @@ const zh: { [K in keyof typeof en]: string } = {
   searchStartHome: "从首页开始",
   searchHeading: "搜索节点",
   searchDescription:
-    "在标题、会话中的问答、随问和引用片段中搜索。结果将打开对应节点。",
+    "在标题、会话中的问答、随便问问和引用片段中搜索。结果将打开对应节点。",
   searchPlaceholder: "按关键词搜索…",
   searchNodesAria: "搜索节点",
   searchKeywordHint: "输入关键词，在所有学习会话中查找。",
@@ -328,9 +340,9 @@ const zh: { [K in keyof typeof en]: string } = {
   searchOpen: "打开",
 
   nodeSessionIncomplete: "会话数据不完整。",
-  nodeJustAskLog: "随问记录",
-  nodeJustAskEmpty: "该节点暂无异问。使用下方「随问」可留下独立问答。",
-  nodeJustAskCurrent: "当前随问",
+  nodeJustAskLog: "随便问问 记录",
+  nodeJustAskEmpty: "该节点暂无疑问。使用下方「随便问问」可留下独立问答。",
+  nodeJustAskCurrent: "当前随便问问",
   nodeTitleGenerating: "标题生成中",
   nodeThinking: "正在思考中",
   nodeMastery: "掌握度",
@@ -340,17 +352,29 @@ const zh: { [K in keyof typeof en]: string } = {
   nodeLearningTrace: "学习路径",
   nodeFullMap: "整棵树",
   nodeAddAsChild: "加为子节点",
-  nodeJustAskLabel: "随问",
+  nodeJustAskLabel: "随便问问",
   nodeAskQuestion: "提问",
   nodeNextPlaceholder: "接下来想学什么？",
   nodeCreateChild: "新建子节点",
-  nodeJustAskMode: "随问",
+  nodeJustAskMode: "随便问问",
   nodeAnswerTarget: "回答放在哪里",
   nodeSubmitCreateChild: "提交并生成子节点",
-  nodeSubmitJustAsk: "提交为随问",
+  nodeSubmitJustAsk: "提交为随便问问",
   nodeUnexpectedResponse: "意外响应",
   nodeUnexpectedStream: "意外的流式响应",
   nodeRequestFailed: "请求失败",
+  askLlmKeyRequired:
+    "请在设置中为你选择的大模型提供商填写 API 密钥（或在服务器上配置对应环境变量），然后再试。",
+  askWebSearchExaKeyRequired:
+    "使用 Exa 联网搜索时需要配置 Exa 的 API 密钥。请在「设置」中填写，或在服务器上设置环境变量 EXA_API_KEY。",
+  askWebSearchBraveKeyRequired:
+    "使用 Brave 联网搜索时需要配置 Brave 的 API 密钥。请在「设置」中填写，或在服务器上设置环境变量 BRAVE_API_KEY。",
+  askWebSearchTavilyKeyRequired:
+    "使用 Tavily 联网搜索时需要配置 Tavily 的 API 密钥。请在「设置」中填写，或在服务器上设置环境变量 TAVILY_API_KEY。",
+  askQuestionRequired: "问题不能为空。",
+  askStreamOnly: "本接口只支持流式，请在请求体中设置 stream: true。",
+  askInvalidMode: "无效的请求模式。",
+  askWebSearchFailed: "联网搜索失败",
   nodeDeleteTitle: "删除节点？",
   nodeDeleteBody: "将删除此节点及其下所有子节点，此操作无法撤销。",
   nodeErrorGeneric: "出错了",
