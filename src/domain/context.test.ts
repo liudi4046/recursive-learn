@@ -23,9 +23,23 @@ describe("buildAskContext", () => {
     });
 
     expect(context.mode).toBe("create_child_node");
+    expect(context.locale).toBe("zh");
     expect(context.path.map((node) => node.title)).toEqual(["Transformer", "Self-attention"]);
     expect(context.pathNodes).toHaveLength(2);
     expect(context.pathNodes[1].title).toBe("Self-attention");
     expect(JSON.stringify(context)).not.toContain("Positional Encoding");
+  });
+
+  it("uses English locale when requested", () => {
+    const session = createTopicWithRoot("Topic", "Root");
+    const context = buildAskContext({
+      mapRoot: { title: session.nodes[0].title },
+      nodes: session.nodes,
+      activeNodeId: session.activeNodeId,
+      question: "Hello?",
+      mode: "just_ask",
+      locale: "en"
+    });
+    expect(context.locale).toBe("en");
   });
 });

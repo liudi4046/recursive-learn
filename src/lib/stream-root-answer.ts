@@ -14,7 +14,7 @@ import {
 } from "@/lib/create-child-stream-buffer";
 import { messageForAskApiError, type AskApiErrorBody } from "@/lib/ask-api-error-message";
 import { buildAskLlmFields, loadDeepseekSettings, webSearchApiFields } from "@/lib/deepseek-settings";
-import type { MessageKey } from "@/i18n/strings";
+import type { AppLocale, MessageKey } from "@/i18n/strings";
 
 function createStreamThrottler(
   onFlush: (text: string) => void,
@@ -72,7 +72,7 @@ export async function streamRootAnswer(
   question: string,
   useWebSearch: boolean,
   setState: (next: AppState) => void,
-  options: { t: (key: MessageKey) => string }
+  options: { t: (key: MessageKey) => string; locale: AppLocale }
 ): Promise<void> {
   let current = initial;
   if (initial.askSetupBanner != null) {
@@ -96,6 +96,7 @@ export async function streamRootAnswer(
         mode: "create_child_node",
         stream: true,
         webSearch: useWebSearch,
+        locale: options.locale,
         ...buildAskLlmFields(settings),
         ...webSearchApiFields(settings, useWebSearch)
       })

@@ -129,7 +129,7 @@ export function NodeDetailPage({
   state: AppState;
   onStateChange: (state: AppState | null) => void;
 }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const router = useRouter();
   const stateRef = useRef(state);
   useEffect(() => {
@@ -211,6 +211,7 @@ export function NodeDetailPage({
           mode: "just_ask",
           stream: true,
           webSearch,
+          locale,
           ...buildAskLlmFields(settings),
           ...webSearchApiFields(settings, webSearch)
         })
@@ -332,6 +333,7 @@ export function NodeDetailPage({
           mode: "create_child_node",
           stream: true,
           webSearch,
+          locale,
           ...buildAskLlmFields(settings),
           ...webSearchApiFields(settings, webSearch)
         })

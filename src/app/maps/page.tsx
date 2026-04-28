@@ -45,7 +45,7 @@ function rootAnswerPreview(root: LearningNode): string | null {
 }
 
 export default function MapsIndexPage() {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const router = useRouter();
   const { rehydrated, state, setState } = useAppState();
   const [query, setQuery] = useState("");
@@ -91,7 +91,7 @@ export default function MapsIndexPage() {
     setState(withThinking);
     setQuery("");
     router.push(`/nodes/${rootId}`);
-    void streamRootAnswer(withThinking, rootId, trimmed, webSearch, setState, { t });
+    void streamRootAnswer(withThinking, rootId, trimmed, webSearch, setState, { t, locale });
   }
 
   function confirmDeleteMap() {

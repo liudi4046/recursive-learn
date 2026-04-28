@@ -15,7 +15,7 @@ import { useAppState } from "@/state/app-state-context";
 
 export default function Page() {
   const router = useRouter();
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const { rehydrated, state, setState } = useAppState();
 
   if (!rehydrated) {
@@ -37,7 +37,7 @@ export default function Page() {
     });
     setState(withThinking);
     router.push(`/nodes/${rootId}`);
-    void streamRootAnswer(withThinking, rootId, trimmed, webSearch, setState, { t });
+    void streamRootAnswer(withThinking, rootId, trimmed, webSearch, setState, { t, locale });
   }
 
   return <HomePage continueNodeId={state?.activeNodeId} onStart={handleStart} />;

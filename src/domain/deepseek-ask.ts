@@ -1,6 +1,6 @@
 import type { LlmProviderId } from "@/lib/deepseek-settings";
 import { LLM_PROVIDER_BASE_URL } from "@/lib/deepseek-settings";
-import type { AskContext } from "./context";
+import type { AskContext, AskPromptLocale } from "./context";
 import { CreateChildProtocolStreamParser } from "./create-child-stream-protocol";
 import type { CreateNodeOutput } from "./types";
 import type { LearningNode } from "./types";
@@ -22,27 +22,35 @@ function chatCompletionsUrl(baseUrl: string): string {
   return `${trimBaseUrl(baseUrl)}/chat/completions`;
 }
 
-function nodeBlocksDigest(node: LearningNode): string {
+function nodeBlocksDigest(node: LearningNode, locale: AskPromptLocale): string {
   if (node.contentBlocks.length === 0) {
-    return "（此条下尚未有问与答）";
+    return locale === "en" ? "(No Q&A under this node yet.)" : "（此条下尚未有问与答）";
   }
+  const qLabel = locale === "en" ? "Q: " : "问：";
+  const aLabel = locale === "en" ? "A: " : "答：";
   return node.contentBlocks
     .map((b) => {
-      const q = b.question ? `问：${b.question}\n` : "";
-      return `${q}答：${b.answer}`;
+      const q = b.question ? `${qLabel}${b.question}\n` : "";
+      return `${q}${aLabel}${b.answer}`;
     })
     .join("\n\n");
 }
 
-function justAskDigestForPrompt(node: LearningNode): string {
+function justAskDigestForPrompt(node: LearningNode, locale: AskPromptLocale): string {
   const entries = node.justAskEntries ?? [];
   if (entries.length === 0) {
     return "";
   }
+  const qLabel = locale === "en" ? "Q: " : "问：";
+  const aLabel = locale === "en" ? "A: " : "答：";
+  const header =
+    locale === "en"
+      ? "\n\nThis node also has side Q&A threads (alongside the main blocks):\n"
+      : "\n\n此条上另有即兴追问与回复（与主线问答并列）：\n";
   return (
-    "\n\n此条上另有即兴追问与回复（与主线问答并列）：\n" +
+    header +
     entries
-      .map((e) => `问：${e.question}\n答：${e.answer}`)
+      .map((e) => `${qLabel}${e.question}\n${aLabel}${e.answer}`)
       .join("\n\n")
   );
 }
@@ -53,37 +61,83 @@ function justAskDigestForPrompt(node: LearningNode): string {
 export function buildPromptContextForAsk(ctx: AskContext): string {
   const pathSection = ctx.pathNodes
     .map((node) => {
-      return `### ${node.title}\n${nodeBlocksDigest(node)}${justAskDigestForPrompt(node)}`;
+      return `### ${node.title}\n${nodeBlocksDigest(node, ctx.locale)}${justAskDigestForPrompt(node, ctx.locale)}`;
     })
     .join("\n\n");
+  const intro =
+    ctx.locale === "en"
+      ? 'The user has already gone through several rounds of Q&A. Below is the log in order. Each "###" heading only scopes one entry; under it are the questions and answers recorded at the time, and one entry may contain multiple Q&A pairs.'
+      : "用户此前已进行多轮问与答。下为按顺序整理出来的记录。每个「###」小标题只用于区分不同条目的范围；条目下依次是当时留下的提问与回答，同一条下可以有多问多答。";
+  const latestLabel = ctx.locale === "en" ? "Latest question:" : "最新问题：";
   return [
-    "用户此前已进行多轮问与答。下为按顺序整理出来的记录。每个「###」小标题只用于区分不同条目的范围；条目下依次是当时留下的提问与回答，同一条下可以有多问多答。",
+    intro,
     pathSection,
-    ctx.webSearchResults.length > 0 ? formatWebSearchResultsForPrompt(ctx.webSearchResults) : "",
-    `最新问题：\n${ctx.question}`
+    ctx.webSearchResults.length > 0
+      ? formatWebSearchResultsForPrompt(ctx.webSearchResults, ctx.locale)
+      : "",
+    `${latestLabel}\n${ctx.question}`
   ]
     .filter(Boolean)
     .join("\n\n");
 }
 
-const JUST_ASK_USER_SUFFIX =
-  "尽量使用与问题相同的主要语言；需要时可用 Markdown。";
+function justAskUserSuffix(locale: AskPromptLocale): string {
+  return locale === "en"
+    ? "Reply in English unless the latest question is clearly written in another language (e.g. Chinese). You may use Markdown when helpful."
+    : "尽量使用与问题相同的主要语言；需要时可用 Markdown。";
+}
 
-const JUST_ASK_SYSTEM =
-  "用户消息中先是与当前问题相关的背景，最后一段是「最新问题」。请回答该问题。";
+function justAskSystem(locale: AskPromptLocale): string {
+  return locale === "en"
+    ? 'The user message is background for the current topic, ending with a line "Latest question:". Answer that latest question.'
+    : "用户消息中先是与当前问题相关的背景，最后一段是「最新问题」。请回答该问题。";
+}
 
 function getJustAskUserContent(ctx: AskContext): string {
-  return [buildPromptContextForAsk(ctx), JUST_ASK_USER_SUFFIX].join("\n\n");
+  return [buildPromptContextForAsk(ctx), justAskUserSuffix(ctx.locale)].join("\n\n");
 }
 
 function getJustAskMessages(ctx: AskContext) {
   return [
-    { role: "system" as const, content: JUST_ASK_SYSTEM },
+    { role: "system" as const, content: justAskSystem(ctx.locale) },
     { role: "user" as const, content: getJustAskUserContent(ctx) }
   ];
 }
 
-const CREATE_CHILD_PROTOCOL_SYSTEM = "分节与分隔行必须和 user 中约定的一致；除此之外不要加开场白、尾声或题外话。";
+function createChildProtocolSystem(locale: AskPromptLocale): string {
+  return locale === "en"
+    ? "Section breaks and separator lines must match the user message exactly; do not add intros, outros, or off-topic text."
+    : "分节与分隔行必须和 user 中约定的一致；除此之外不要加开场白、尾声或题外话。";
+}
+
+function createChildProtocolUser(ctx: AskContext): string {
+  if (ctx.locale === "en") {
+    return [
+      buildPromptContextForAsk(ctx),
+      "",
+      "Write the full reply in one go, in four parts. The line markers below must match exactly (each on its own line, in this order, no extra lines before the first marker):",
+      "",
+      "First line only: ---ML-TITLE---",
+      "Next line only: the node title by itself — one short phrase summarizing what the «Latest question» is asking. Do not use the word «title», no leading quotes or colons; in English at most 10 words; in Chinese at most 10 Han characters.",
+      "Next line only: ---ML-BODY---",
+      "Then the explanation for the latest question; light Markdown is fine. The body must not contain the substring ---ML-META---.",
+      "Next line only: ---ML-META---",
+      "Last line: a single JSON object, not in a code fence. May be {} (keep the line for protocol compatibility)."
+    ].join("\n");
+  }
+  return [
+    buildPromptContextForAsk(ctx),
+    "",
+    "请一次写完回复，分四段，行首的标记须与下面逐字相同（且各占单独一行，顺序不可变）：",
+    "",
+    "第一行只写：---ML-TITLE---",
+    "下一行只写节点标题这一行文字本身：用一句话概括上面「最新问题」在问什么。该行不要出现「标题」二字，不要用引号或冒号起头（不要写成「标题」：… 这种形式）；中文时该行总字数（汉字）不超过 10 个；以英文为主时该行不超过 10 个词。",
+    "再下一行只写：---ML-BODY---",
+    "接着写对「最新问题」的讲解正文，可用轻量 Markdown。正文中不要出现子串：---ML-META---。",
+    "再下一行只写：---ML-META---",
+    "最后一行是单个 JSON 对象，不用代码块。可为空对象 {}（保留该行以兼容协议）。"
+  ].join("\n");
+}
 
 /**
  * OpenAI-style SSE: stream `delta.content` to `onToken`, return the full (trimmed) string.
@@ -248,7 +302,7 @@ export async function streamLlmJustAsk(
     return streamAnthropicText(
       routing.model,
       routing.apiKey,
-      JUST_ASK_SYSTEM,
+      justAskSystem(ctx.locale),
       getJustAskUserContent(ctx),
       onToken
     );
@@ -273,18 +327,8 @@ export async function streamLlmCreateChildProtocol(
   onBodyDelta: (s: string) => void,
   onTitleLine?: (t: string) => void
 ): Promise<CreateNodeOutput> {
-  const user = [
-    buildPromptContextForAsk(ctx),
-    "",
-    "请一次写完回复，分四段，行首的标记须与下面逐字相同（且各占单独一行，顺序不可变）：",
-    "",
-    "第一行只写：---ML-TITLE---",
-    "下一行只写节点标题这一行文字本身：用一句话概括上面「最新问题」在问什么。该行不要出现「标题」二字，不要用引号或冒号起头（不要写成「标题」：… 这种形式）；中文时该行总字数（汉字）不超过 10 个；以英文为主时该行不超过 10 个词。",
-    "再下一行只写：---ML-BODY---",
-    "接着写对「最新问题」的讲解正文，可用轻量 Markdown。正文中不要出现子串：---ML-META---。",
-    "再下一行只写：---ML-META---",
-    "最后一行是单个 JSON 对象，不用代码块。可为空对象 {}（保留该行以兼容协议）。"
-  ].join("\n");
+  const user = createChildProtocolUser(ctx);
+  const sys = createChildProtocolSystem(ctx.locale);
   const parser = new CreateChildProtocolStreamParser(onTitleLine);
 
   const full =
@@ -292,7 +336,7 @@ export async function streamLlmCreateChildProtocol(
       ? await streamAnthropicText(
           routing.model,
           routing.apiKey,
-          CREATE_CHILD_PROTOCOL_SYSTEM,
+          sys,
           user,
           (delta) => {
             onBodyDelta(parser.append(delta));
@@ -303,7 +347,7 @@ export async function streamLlmCreateChildProtocol(
           routing.model,
           routing.apiKey,
           [
-            { role: "system", content: CREATE_CHILD_PROTOCOL_SYSTEM },
+            { role: "system", content: sys },
             { role: "user", content: user }
           ],
           (delta) => {

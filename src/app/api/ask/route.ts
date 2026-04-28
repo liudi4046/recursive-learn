@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { buildAskContext } from "@/domain/context";
+import { buildAskContext, type AskPromptLocale } from "@/domain/context";
 import { streamLlmCreateChildProtocol, streamLlmJustAsk, type LlmRouting } from "@/domain/deepseek-ask";
 import {
   searchBrave,
@@ -35,6 +35,8 @@ type AskRequest = {
   llm?: { provider?: LlmProviderId; apiKey?: string; model?: string };
   /** @deprecated Use `llm` with provider `deepseek`. */
   deepseek?: { apiKey?: string; model?: string };
+  /** UI language for model prompts; when omitted, defaults to `zh` (legacy). */
+  locale?: AskPromptLocale;
 };
 
 function envKeyForProvider(p: LlmProviderId): string {
@@ -186,6 +188,7 @@ export async function POST(request: Request) {
     activeNodeId: body.activeNodeId,
     question,
     mode: body.mode,
+    locale: body.locale,
     webSearchResults
   });
   const llm = resolveLlm(body);

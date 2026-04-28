@@ -218,15 +218,24 @@ export async function searchExa(input: {
   return requestSearch(normalized);
 }
 
-export function formatWebSearchResultsForPrompt(results: WebSearchResult[]): string {
+/** `en` | `zh` — matches UI locale for LLM prompts. */
+export function formatWebSearchResultsForPrompt(
+  results: WebSearchResult[],
+  locale: "en" | "zh" = "zh"
+): string {
   if (results.length === 0) {
-    return "联网搜索资料：\n没有找到可用结果。";
+    return locale === "en"
+      ? "Web search results:\nNo usable results found."
+      : "联网搜索资料：\n没有找到可用结果。";
   }
+  const header = locale === "en" ? "Web search results:" : "联网搜索资料：";
+  const snippetLabel = locale === "en" ? "\nSnippet: " : "\n摘要：";
+  const urlLabel = locale === "en" ? "\nURL: " : "\nURL：";
   return [
-    "联网搜索资料：",
+    header,
     ...results.map((item, index) => {
-      const content = item.content ? `\n摘要：${item.content}` : "";
-      return `[${index + 1}] ${item.title}\nURL：${item.url}${content}`;
+      const content = item.content ? `${snippetLabel}${item.content}` : "";
+      return `[${index + 1}] ${item.title}${urlLabel}${item.url}${content}`;
     })
   ].join("\n\n");
 }
