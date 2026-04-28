@@ -1,3 +1,8 @@
+<p align="center">
+  <a href="README.md"><img src="https://img.shields.io/badge/lang-English-0369a6?style=flat-square" alt="English"></a>
+  <a href="README.zh-CN.md"><img src="https://img.shields.io/badge/lang-简体中文-555555?style=flat-square" alt="简体中文"></a>
+</p>
+
 # Recursive Learn
 
 When you learn with AI, you often skim a long answer, hit an unfamiliar concept, dig in, find another fuzzy term—and keep branching **down along what you do not yet understand** until each step is clear. **Recursive Learn** supports that workflow: questions become a **traceable tree**, each node can be marked **learned vs. not**, so you can deep-dive along one branch first, then jump back anywhere on the tree.
