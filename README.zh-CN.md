@@ -6,7 +6,7 @@
 # Recursive Learn（递归学习）
 
 <p align="center">
-  <img src="docs/readme-hero.png" alt="Recursive Learn 首页：含学习入口、会话与示例「Transformer」问题树（已掌握 / 未掌握节点）" width="820">
+  <img src="docs/readme-hero.png" alt="Recursive Learn 首页：含学习入口、会话与示例「Transformer」问题树（已掌握 / 未掌握节点）" width="912" />
 </p>
 
 用 AI 学东西时，常见情况是：它答一长段，你对其中某个概念不懂，再问，新回答里又有不懂的词，继续问——很像**沿着不懂之处一路往下问**，直到每个环节都清楚。本应用就是为这种**递归式追问**设计的：把问题留痕、排成树，并对每个节点**标记是否掌握**，方便你像深度优先一样啃完一条线，再随时回到树上任意位置。

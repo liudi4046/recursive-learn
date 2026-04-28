@@ -6,7 +6,7 @@
 # Recursive Learn
 
 <p align="center">
-  <img src="docs/readme-hero.png" alt="Recursive Learn landing page: home screen with Sessions, Search, Settings, and a sample Transformer topic tree showing mastered vs unmastered nodes" width="820">
+  <img src="docs/readme-hero.png" alt="Recursive Learn landing page: home screen with Sessions, Search, Settings, and a sample Transformer topic tree showing mastered vs unmastered nodes" width="912" />
 </p>
 
 When you learn with AI, you often skim a long answer, hit an unfamiliar concept, dig in, find another fuzzy term—and keep branching **down along what you do not yet understand** until each step is clear. **Recursive Learn** supports that workflow: questions become a **traceable tree**, each node can be marked **learned vs. not**, so you can deep-dive along one branch first, then jump back anywhere on the tree.
