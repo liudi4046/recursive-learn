@@ -83,7 +83,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   return (
     <ThemeContext.Provider value={value}>
-      <div className="min-h-full bg-ml-surface font-sans text-[15px] leading-normal text-ml-ink antialiased">
+      <div className="min-h-dvh bg-ml-surface font-sans text-[15px] leading-normal text-ml-ink antialiased">
         {children}
       </div>
     </ThemeContext.Provider>

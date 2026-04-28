@@ -83,6 +83,13 @@
 
   body {
     margin: 0;
+    /** Covers sub-viewport gaps when inner layout is shorter than 100dvh; color follows :root / html.dark tokens. */
+    min-height: 100dvh;
+    background-color: var(--color-ml-surface);
+  }
+
+  html {
+    min-height: 100dvh;
   }
 
   button,
