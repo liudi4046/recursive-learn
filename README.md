@@ -34,6 +34,19 @@ When you learn with AI, you often skim a long answer, hit an unfamiliar concept,
 
 ---
 
+## Supported LLM providers
+
+- **OpenAI** (gpt-4o-mini, gpt-4o, etc.)
+- **Google Gemini** (gemini-2.0-flash, etc.)
+- **Anthropic Claude** (claude-sonnet, claude-opus, etc.)
+- **DeepSeek** (deepseek-chat, deepseek-reasoner, etc.)
+- **Moonshot Kimi** (moonshot-v1-8k, etc.)
+- **Zhipu GLM** (glm-4-flash, glm-4, etc.)
+- **Alibaba Qwen** (qwen-turbo, qwen-plus, etc.)
+- **MiniMax** (MiniMax-M2.7, etc.) — uses Anthropic-compatible endpoint
+
+---
+
 ## Getting started
 
 1. **Install and run** (Node.js required):
@@ -46,6 +59,8 @@ When you learn with AI, you often skim a long answer, hit an unfamiliar concept,
    Open the app in your browser (usually `http://localhost:3000`).
 
 2. **Configure keys.** Open **Settings**, pick an LLM provider and enter an API Key (or rely on server-side env). Add search keys only if you need live web retrieval. Save.
+   - For **MiniMax**, use the API key from platform.minimaxi.com; the app communicates via Anthropic-compatible Messages API.
+   - For **server-side setup**, see `.env.example` for all supported provider environment variables.
 
 3. **Begin a thread.** Enter a topic and start learning; read the answer and ask the **next concrete question** beneath it. Branch with **create child**, or use **Just ask** for a lightweight Q&A without a new branch yet.
 
