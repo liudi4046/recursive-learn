@@ -290,6 +290,87 @@ function providerErrorLabel(provider: LlmProviderId): string {
   return `${provider} API`;
 }
 
++/**
++ * MiniMax requires special stream handling: use stream: "minimax" format or filter response properly.
++ * Reference: https://platform.minimaxi.com/document/chat-completion
++ */
++async function streamMiniMaxCompatible(
++  model: string,
++  apiKey: string,
++  messages: Array<{ role: "system" | "user" | "assistant"; content: string }>,
++  onToken: (delta: string) => void
++): Promise<string> {
++  const baseUrl = "https://api.minimaxi.com/v1";
++  const res = await fetch(`${baseUrl}/chat/completions`, {
++    method: "POST",
++    headers: {
++      Authorization: `Bearer ${apiKey}`,
++      "Content-Type": "application/json"
++    },
++    body: JSON.stringify({
++      model,
++      temperature: 0.45,
++      stream: true,
++      stream_options: { include_usage: false },
++      messages
++    })
++  });
++  if (!res.ok) {
++    const errBody = await res.text();
++    throw new Error(`minimax API ${res.status}: ${errBody.slice(0, 800)}`);
++  }
++  if (!res.body) {
++    throw new Error("minimax returned an empty body.");
++  }
++  const reader = res.body.getReader();
++  const decoder = new TextDecoder();
++  let buffer = "";
++  let full = "";
++  // Track if we've started seeing actual model output (after protocol markers or initial content)
++  let foundRealOutput = false;
++  while (true) {
++    const { value, done } = await reader.read();
++    if (done) break;
++    buffer += decoder.decode(value, { stream: true });
++    for (;;) {
++      const n = buffer.indexOf("\n");
++      if (n < 0) break;
++      let line = buffer.slice(0, n);
++      buffer = buffer.slice(n + 1);
++      if (line.endsWith("\r")) line = line.slice(0, -1);
++      const t = line.trim();
++      if (!t.startsWith("data: ")) continue;
++      const data = t.slice(6);
++      if (data === "[DONE]") continue;
++      try {
++        const json = JSON.parse(data) as {
++          choices?: Array<{ delta?: { content?: string | null } }>;
++        };
++        const c = json.choices?.[0]?.delta?.content;
++        if (c) {
++          // Filter: MiniMax sometimes echoes context; skip prompt echoes
++          // Skip if it looks like user/system prompt repetition
++          if (c.includes("---ML-") || c.includes("最新问题") || c.includes("Latest question")) {
++            foundRealOutput = true; // We found real model output with markers
++          }
++          // Skip pure prompt-echo patterns ONLY if we haven't found real output yet
++          const isPromptEcho =
++            !foundRealOutput &&
++            (c.includes("用户此前已进行多轮问与答") || c.includes("The user has already gone"));
++          if (!isPromptEcho) {
++            foundRealOutput = true;
++            full += c;
++            onToken(c);
++          }
++        }
++      } catch {
++        // skip invalid JSON
++      }
++    }
++  }
++  return full.trim();
++}
++
 /**
  * Stream tokens from the configured LLM; returns the full answer (trimmed) for persistence.
  */
@@ -305,6 +386,14 @@ export async function streamLlmJustAsk(
       justAskSystem(ctx.locale),
       getJustAskUserContent(ctx),
       onToken
+    +  if (routing.provider === "minimax") {
+    +    return streamMiniMaxCompatible(
+    +      routing.model,
+    +      routing.apiKey,
+    +      getJustAskMessages(ctx),
+    +      onToken
+    +    );
+    +  }
     );
   }
   const base = openAiCompatibleBase(routing.provider);
@@ -342,6 +431,18 @@ export async function streamLlmCreateChildProtocol(
             onBodyDelta(parser.append(delta));
           }
         )
+      +      : routing.provider === "minimax"
+      +      ? await streamMiniMaxCompatible(
+      +          routing.model,
+      +          routing.apiKey,
+      +          [
+      +            { role: "system", content: sys },
+      +            { role: "user", content: user }
+      +          ],
+      +          (delta) => {
+      +            onBodyDelta(parser.append(delta));
+      +          }
+      +        )
       : await streamOpenAiCompatibleDeltas(
           openAiCompatibleBase(routing.provider),
           routing.model,
