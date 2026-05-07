@@ -68,7 +68,11 @@ function envKeyForProvider(p: LlmProviderId): string {
         ""
       );
     case "minimax":
-      return process.env.MINIMAX_API_KEY?.trim() ?? "";
+      return (
+        process.env.MINIMAX_API_KEY?.trim() ||
+        process.env.MINIMAX_API_TOKEN?.trim() ||
+        ""
+      );
     default:
       return "";
   }

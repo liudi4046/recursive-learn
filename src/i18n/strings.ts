@@ -89,7 +89,7 @@ const en = {
   llmHintKimi: "API key from Moonshot; OpenAI-compatible endpoint.",
   llmHintGlm: "API key from Zhipu Open Platform; OpenAI-compatible v4 endpoint.",
   llmHintQwen: "API key from Alibaba DashScope; compatible-mode OpenAI endpoint.",
-  llmHintMinimax: "API key from MiniMax; OpenAI-compatible international endpoint.",
+  llmHintMinimax: "API key from MiniMax; uses the Anthropic-compatible endpoint (https://api.minimaxi.com/anthropic).",
 
   webHintExa: "Exa neural search API (x-api-key from dashboard.exa.ai).",
   webHintTavily: "Search API optimized for LLM context.",
@@ -310,7 +310,7 @@ const zh: { [K in keyof typeof en]: string } = {
   llmHintKimi: "来自月之暗面 Moonshot 的 API 密钥；兼容 OpenAI 的端点。",
   llmHintGlm: "来自智谱开放平台的 API 密钥；兼容 OpenAI 的 v4 端点。",
   llmHintQwen: "来自阿里云 DashScope 的 API 密钥；兼容模式 OpenAI 端点。",
-  llmHintMinimax: "来自 MiniMax 的 API 密钥；国际站兼容 OpenAI 端点。",
+  llmHintMinimax: "来自 MiniMax 的 API 密钥；使用 Anthropic 兼容端点（https://api.minimaxi.com/anthropic）。",
 
   webHintExa: "Exa 神经搜索 API（在 dashboard.exa.ai 使用 x-api-key）。",
   webHintTavily: "面向大模型上下文的搜索 API。",

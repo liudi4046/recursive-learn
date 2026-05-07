@@ -34,6 +34,19 @@
 
 ---
 
+## 支持的大语言模型提供商
+
+- **OpenAI**（gpt-4o-mini、gpt-4o 等）
+- **Google Gemini**（gemini-2.0-flash 等）
+- **Anthropic Claude**（claude-sonnet、claude-opus 等）
+- **DeepSeek**（deepseek-chat、deepseek-reasoner 等）
+- **Moonshot Kimi**（moonshot-v1-8k 等）
+- **Zhipu GLM**（glm-4-flash、glm-4 等）
+- **Alibaba Qwen**（qwen-turbo、qwen-plus 等）
+- **MiniMax**（MiniMax-M2.7 等）— 使用 Anthropic 兼容端点
+
+---
+
 ## 使用方式
 
 1. **安装与运行**（需 Node.js）
@@ -47,6 +60,8 @@
 
 2. **配置密钥**  
    打开 **Settings**，选择 LLM 提供商并填写 API Key（或确保服务器环境已配置）；需要联网检索时再填搜索相关 Key。保存。
+   - **MiniMax** 用户：从 platform.minimaxi.com 获取 API Key，应用使用 Anthropic 兼容的 Messages API 与之通信。
+   - **服务端配置**：参考 `.env.example` 了解所有支持的提供商环境变量设置方式。
 
 3. **开始一条学习线**  
    在首页输入主题，点击「开始学习」。进入节点后阅读回答，在下方提出**下一个具体问题**；若希望把问题记为树上的分支，选择**创建子节点**；若只想先记一条旁路问答，用 **Just ask**。

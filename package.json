@@ -16,7 +16,7 @@
   "dependencies": {
     "@vitejs/plugin-react": "latest",
     "nanoid": "latest",
-    "next": "latest",
+    "next": "^16.2.4",
     "openai": "latest",
     "react": "latest",
     "react-dom": "latest",
